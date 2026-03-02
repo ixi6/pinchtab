@@ -64,8 +64,21 @@ export default function TabsChart({
       (serverData || []).map((s) => [s.timestamp, s]),
     );
 
-    return data.map((d) => {
-      const merged: Record<string, number> = { ...d };
+    // Use tab data as base, or server data if no tabs
+    const baseData =
+      data.length > 0
+        ? data
+        : (serverData || []).map((s) => ({ timestamp: s.timestamp }));
+
+    return baseData.map((d) => {
+      const merged: Record<string, number> = { timestamp: d.timestamp };
+
+      // Add tab data if present
+      for (const [key, val] of Object.entries(d)) {
+        if (key !== "timestamp") {
+          merged[key] = val as number;
+        }
+      }
 
       // Add memory keys with _mem suffix
       const mem = memByTime.get(d.timestamp);
@@ -87,10 +100,11 @@ export default function TabsChart({
     });
   }, [data, memoryData, serverData]);
 
-  if (data.length === 0 || instances.length === 0) {
+  // Show empty state only if no data at all
+  if (mergedData.length === 0) {
     return (
       <div className="flex h-[200px] items-center justify-center rounded-lg border border-border-subtle bg-bg-surface text-sm text-text-muted">
-        {instances.length === 0 ? "No running instances" : "Collecting data..."}
+        Collecting data...
       </div>
     );
   }

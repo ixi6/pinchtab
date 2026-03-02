@@ -46,20 +46,32 @@ export default function MonitoringPage() {
 
   const fetchAllInstanceData = useCallback(async () => {
     const runningInstances = instances.filter((i) => i.status === "running");
-    if (runningInstances.length === 0) return;
+    const timestamp = Date.now();
 
     try {
-      // Fetch tabs always, metrics only if enabled
-      const [allTabs, allMetrics, serverMetrics] = await Promise.all([
+      // Always fetch server metrics
+      const serverMetrics = await api.fetchServerMetrics().catch(() => null);
+      if (serverMetrics) {
+        addServerDataPoint({
+          timestamp,
+          goHeapMB: serverMetrics.goHeapAllocMB,
+          goroutines: serverMetrics.goNumGoroutine,
+          rateBucketHosts: serverMetrics.rateBucketHosts,
+        });
+      }
+
+      // Skip instance data if no running instances
+      if (runningInstances.length === 0) return;
+
+      // Fetch tabs and instance metrics
+      const [allTabs, allMetrics] = await Promise.all([
         api.fetchAllTabs().catch(() => []),
         memoryEnabled ? api.fetchAllMetrics().catch(() => []) : [],
-        api.fetchServerMetrics().catch(() => null),
       ]);
 
       const tabsArray = Array.isArray(allTabs) ? allTabs : [];
       const metricsArray = Array.isArray(allMetrics) ? allMetrics : [];
 
-      const timestamp = Date.now();
       const tabDataPoint: Record<string, number> = { timestamp };
       const memDataPoint: Record<string, number> = { timestamp };
       const tabsByInstance: Record<string, InstanceTab[]> = {};
@@ -88,14 +100,6 @@ export default function MonitoringPage() {
         addMemoryDataPoint(
           memDataPoint as Parameters<typeof addMemoryDataPoint>[0],
         );
-      }
-      if (serverMetrics) {
-        addServerDataPoint({
-          timestamp,
-          goHeapMB: serverMetrics.goHeapAllocMB,
-          goroutines: serverMetrics.goNumGoroutine,
-          rateBucketHosts: serverMetrics.rateBucketHosts,
-        });
       }
       setCurrentTabs(tabsByInstance);
       setCurrentMemory(memoryByInstance);
