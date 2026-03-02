@@ -161,11 +161,59 @@ func TestClearChromeSessions(t *testing.T) {
 	tmp := t.TempDir()
 	sessionsDir := filepath.Join(tmp, "Default", "Sessions")
 	_ = os.MkdirAll(sessionsDir, 0755)
-	_ = os.WriteFile(filepath.Join(sessionsDir, "Session_1"), []byte("data"), 0644)
+
+	// Create the specific session restore files
+	for _, name := range sessionRestoreFiles {
+		_ = os.WriteFile(filepath.Join(sessionsDir, name), []byte("data"), 0644)
+	}
+	// Also create an unrelated file that should NOT be deleted
+	_ = os.WriteFile(filepath.Join(sessionsDir, "Session_1"), []byte("other"), 0644)
 
 	ClearChromeSessions(tmp)
 
+	// Session restore files should be gone
+	for _, name := range sessionRestoreFiles {
+		if _, err := os.Stat(filepath.Join(sessionsDir, name)); !os.IsNotExist(err) {
+			t.Errorf("expected %s to be removed", name)
+		}
+	}
+
+	// Unrelated files should still exist
+	if _, err := os.Stat(filepath.Join(sessionsDir, "Session_1")); err != nil {
+		t.Error("expected unrelated Session_1 file to remain")
+	}
+}
+
+func TestClearChromeSessions_MissingDir(t *testing.T) {
+	tmp := t.TempDir()
+	sessionsDir := filepath.Join(tmp, "Default", "Sessions")
+	// Don't create the directory
+
+	ClearChromeSessions(tmp)
+
+	// Should not panic, and Sessions dir should still not exist
 	if _, err := os.Stat(sessionsDir); !os.IsNotExist(err) {
-		t.Error("expected Sessions dir to be removed")
+		t.Error("expected Sessions dir to not exist")
+	}
+}
+
+func TestRetryRemove_NonExistent(t *testing.T) {
+	err := retryRemove("/tmp/does-not-exist-at-all", 3)
+	if err != nil {
+		t.Errorf("expected nil for non-existent file, got: %v", err)
+	}
+}
+
+func TestRetryRemove_Success(t *testing.T) {
+	tmp := t.TempDir()
+	p := filepath.Join(tmp, "testfile")
+	_ = os.WriteFile(p, []byte("data"), 0644)
+
+	err := retryRemove(p, 3)
+	if err != nil {
+		t.Errorf("expected nil, got: %v", err)
+	}
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Error("expected file to be removed")
 	}
 }
