@@ -190,10 +190,13 @@ export default function SettingsPage() {
             <label className="flex items-center justify-between">
               <div>
                 <span className="text-sm text-text-secondary">
-                  Memory Metrics
+                  Tab Memory Metrics{" "}
+                  <span className="rounded bg-yellow-500/20 px-1 py-0.5 text-xs text-yellow-500">
+                    experimental
+                  </span>
                 </span>
                 <p className="text-xs text-text-muted">
-                  Aggregate JS heap usage across tabs (can be heavy)
+                  Track JS heap usage per tab via CDP (may cause instability)
                 </p>
               </div>
               <input
