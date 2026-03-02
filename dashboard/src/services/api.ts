@@ -145,5 +145,17 @@ export function subscribeToEvents(handlers: EventHandler): () => void {
     }
   });
 
-  return () => es.close();
+  // Suppress connection errors (expected on page reload/navigation)
+  es.onerror = () => {
+    // SSE will auto-reconnect; silence console noise
+  };
+
+  // Clean up on page unload to prevent ERR_INCOMPLETE_CHUNKED_ENCODING
+  const cleanup = () => es.close();
+  window.addEventListener("beforeunload", cleanup);
+
+  return () => {
+    window.removeEventListener("beforeunload", cleanup);
+    es.close();
+  };
 }
