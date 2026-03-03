@@ -11,6 +11,7 @@ jobs:
   check-branch-name:
     name: Branch Name Convention
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       - name: Check branch name
         run: |
