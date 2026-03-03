@@ -38,6 +38,35 @@ go build ./cmd/pinchtab
 ./pinchtab
 ```
 
+**Example output:**
+```
+🩺 Pinchtab Doctor
+Verifying and setting up development environment...
+
+━━━ Go Backend Requirements ━━━
+
+✅ Go 1.26.0
+✅ golangci-lint 2.9.0
+⚠️  Git hooks not installed
+   Installing git hooks...
+   ✅ Git hooks installed
+✅ Go dependencies
+
+━━━ Dashboard Requirements (React/TypeScript) ━━━
+
+✅ Node.js 22.22.0
+⚠️  Bun
+   Optional for dashboard. Install: curl -fsSL https://bun.sh/install | bash
+
+━━━ Summary ━━━
+
+✅ Setup complete! Auto-installed missing components.
+
+Next steps:
+  go build ./cmd/pinchtab     # Build pinchtab
+  go test ./...               # Run tests
+```
+
 The `doctor.sh` script will:
 - ✅ Check Go 1.25+ (tells you to install if missing)
 - ✅ Check golangci-lint (tells you to install if missing)
