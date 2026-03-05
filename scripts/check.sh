@@ -4,13 +4,13 @@ set -e
 # check.sh — Local pre-push checks matching GitHub Actions CI
 # Uses gotestsum for structured test output with summaries
 
-BOLD='\033[1m'
-ACCENT='\033[38;2;251;191;36m'
-INFO='\033[38;2;136;146;176m'
-SUCCESS='\033[38;2;0;229;204m'
-ERROR='\033[38;2;230;57;70m'
-MUTED='\033[38;2;90;100;128m'
-NC='\033[0m'
+BOLD=$'\033[1m'
+ACCENT=$'\033[38;2;251;191;36m'
+INFO=$'\033[38;2;136;146;176m'
+SUCCESS=$'\033[38;2;0;229;204m'
+ERROR=$'\033[38;2;230;57;70m'
+MUTED=$'\033[38;2;90;100;128m'
+NC=$'\033[0m'
 
 CORE_REGEX='^Test(Health|Orchestrator_|Navigate_|Tabs_|Config_|Metrics_|Cookies_|Error_|Eval_|Upload_|Screenshot_)'
 TMPDIR_CHECK=$(mktemp -d)
@@ -122,7 +122,7 @@ run_integration_tests() {
       pass)
         count=$((count + 1))
         if [ -n "$elapsed" ]; then
-          printf "\r    ${SUCCESS}✓${NC} ${MUTED}[%d]${NC} %s %s%*s\n" "$count" "$test_name" "${MUTED}${elapsed}s${NC}" $((30 - ${#test_name})) ""
+          printf "\r    ${SUCCESS}✓${NC} ${MUTED}[%d]${NC} %-40s ${MUTED}%ss${NC}\n" "$count" "$test_name" "$elapsed"
         else
           printf "\r    ${SUCCESS}✓${NC} ${MUTED}[%d]${NC} %s%*s\n" "$count" "$test_name" $((40 - ${#test_name})) ""
         fi
@@ -130,7 +130,7 @@ run_integration_tests() {
       fail)
         count=$((count + 1))
         if [ -n "$elapsed" ]; then
-          printf "\r    ${ERROR}✗${NC} ${MUTED}[%d]${NC} %s %s%*s\n" "$count" "$test_name" "${MUTED}${elapsed}s${NC}" $((30 - ${#test_name})) ""
+          printf "\r    ${ERROR}✗${NC} ${MUTED}[%d]${NC} %-40s ${MUTED}%ss${NC}\n" "$count" "$test_name" "$elapsed"
         else
           printf "\r    ${ERROR}✗${NC} ${MUTED}[%d]${NC} %s%*s\n" "$count" "$test_name" $((40 - ${#test_name})) ""
         fi
