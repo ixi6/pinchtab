@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,6 +42,33 @@ func TestHandleUpload_NonexistentPath(t *testing.T) {
 	h.HandleUpload(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for nonexistent path, got %d", w.Code)
+	}
+}
+
+func TestHandleUpload_PathTraversal(t *testing.T) {
+	tmpDir := t.TempDir()
+	h := New(&mockBridge{}, &config.RuntimeConfig{StateDir: tmpDir}, nil, nil, nil)
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"dotdot traversal", "../etc/passwd"},
+		{"absolute outside", "/etc/passwd"},
+		{"hidden traversal", "uploads/../../etc/passwd"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := fmt.Sprintf(`{"selector": "input[type=file]", "paths": [%q]}`, tt.path)
+			req := httptest.NewRequest("POST", "/upload", bytes.NewReader([]byte(body)))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			h.HandleUpload(w, req)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("expected 400 for traversal path %q, got %d", tt.path, w.Code)
+			}
+		})
 	}
 }
 

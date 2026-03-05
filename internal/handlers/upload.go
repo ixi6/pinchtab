@@ -54,12 +54,18 @@ func (h *Handlers) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate local paths exist.
-	for _, p := range req.Paths {
-		if _, err := os.Stat(p); err != nil {
-			web.Error(w, 400, fmt.Errorf("file not found: %s", p))
+	// Validate local paths stay within the allowed StateDir.
+	for i, p := range req.Paths {
+		safe, err := web.SafePath(h.Config.StateDir, p)
+		if err != nil {
+			web.Error(w, 400, fmt.Errorf("invalid path: %w", err))
 			return
 		}
+		if _, err := os.Stat(safe); err != nil {
+			web.Error(w, 400, fmt.Errorf("file not found: %s", safe))
+			return
+		}
+		req.Paths[i] = safe
 	}
 
 	// Decode base64 files to temp dir.
