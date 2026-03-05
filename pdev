@@ -20,13 +20,13 @@ COMMANDS=(
   "check:🧪:All checks (Go + Dashboard)"
   "  check go:🧪:Go only"
   "  check dashboard:🧪:Dashboard only"
+  "  check security:🧪:Gosec security scan"
+  "  check docs:🧪:Validate docs JSON"
   "test:🔬:All tests (unit + integration)"
   "  test unit:🔬:Unit tests only"
   "  test integration:🔬:Integration tests only"
-  "build:🚀:Build & run server + dashboard"
+  "build:🚀:Build & run (default)"
   "doctor:🩺:Setup dev environment"
-  "security:🔒:Gosec security scan"
-  "docs:📖:Validate docs JSON"
   "hooks:🪝:Install git hooks"
 )
 
@@ -94,10 +94,18 @@ run_command() {
       echo ""
       exec bash scripts/test.sh integration
       ;;
+    "check security")
+      echo "  ${ACCENT}${BOLD}🔒 Security scan${NC}"
+      echo ""
+      exec bash scripts/check-gosec.sh
+      ;;
+    "check docs")
+      echo "  ${ACCENT}${BOLD}📖 Docs validation${NC}"
+      echo ""
+      exec bash scripts/check-docs-json.sh
+      ;;
     "build")        exec bash scripts/dev.sh ;;
     "doctor")       exec bash scripts/doctor.sh ;;
-    "security")     exec bash scripts/check-gosec.sh ;;
-    "docs")         exec bash scripts/check-docs-json.sh ;;
     "hooks")        exec bash scripts/install-hooks.sh ;;
     *)
       echo "  ${ERROR}Unknown command: $target${NC}"
@@ -164,6 +172,10 @@ pick_with_select() {
 if [ $# -gt 0 ]; then
   case "$1" in
     -h|--help|help) show_help; exit 0 ;;
+    -i|--interactive) 
+      if command -v gum &>/dev/null; then pick_with_gum; else pick_with_select; fi
+      exit 0
+      ;;
     check)
       if [ $# -gt 1 ]; then
         run_command "check $2"
@@ -182,9 +194,5 @@ if [ $# -gt 0 ]; then
   esac
 fi
 
-# Interactive picker
-if command -v gum &>/dev/null; then
-  pick_with_gum
-else
-  pick_with_select
-fi
+# No args → default to build
+run_command "build"
