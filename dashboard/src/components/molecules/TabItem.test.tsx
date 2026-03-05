@@ -25,23 +25,29 @@ describe("TabItem", () => {
     expect(screen.getByText("Untitled")).toBeInTheDocument();
   });
 
+  it("renders short tab ID badge", () => {
+    render(<TabItem tab={mockTab} />);
+
+    // Tab ID is shortened to last segment
+    expect(screen.getByText("123")).toBeInTheDocument();
+  });
+
   it("renders compact variant", () => {
     render(<TabItem tab={mockTab} compact />);
 
     expect(screen.getByText("Example Page")).toBeInTheDocument();
-    // Compact uses border-b on the outer div
+    // Compact wraps in a border-b div
     const titleEl = screen.getByText("Example Page");
-    const container = titleEl.parentElement;
-    expect(container).toHaveClass("border-b");
+    const outerDiv = titleEl.closest(".border-b");
+    expect(outerDiv).toBeInTheDocument();
   });
 
   it("renders card variant by default", () => {
     render(<TabItem tab={mockTab} />);
 
     // Default uses Card component which has rounded class
-    const container = screen
-      .getByText("Example Page")
-      .closest("div")?.parentElement;
-    expect(container).toHaveClass("rounded-lg");
+    const titleEl = screen.getByText("Example Page");
+    const card = titleEl.closest(".rounded-lg");
+    expect(card).toBeInTheDocument();
   });
 });
