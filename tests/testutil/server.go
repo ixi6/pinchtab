@@ -107,6 +107,9 @@ func StartServer(cfg ServerConfig) (*Server, error) {
 	if bin := os.Getenv("CHROME_BINARY"); bin != "" {
 		env = append(env, "CHROME_BINARY="+bin)
 	}
+	if allowEval := os.Getenv("PINCHTAB_ALLOW_EVALUATE"); allowEval != "" {
+		env = append(env, "PINCHTAB_ALLOW_EVALUATE="+allowEval)
+	}
 
 	s.cmd = exec.Command(s.BinaryPath) // #nosec G204 -- BinaryPath is from os.MkdirTemp, not user input
 	s.cmd.Env = env
