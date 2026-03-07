@@ -30,59 +30,75 @@ func ValidateFileConfig(fc *FileConfig) []error {
 			errs = append(errs, err)
 		}
 	}
-	if fc.Server.InstancePortStart != nil && fc.Server.InstancePortEnd != nil {
-		if *fc.Server.InstancePortStart > *fc.Server.InstancePortEnd {
+	if fc.MultiInstance.InstancePortStart != nil && fc.MultiInstance.InstancePortEnd != nil {
+		if *fc.MultiInstance.InstancePortStart > *fc.MultiInstance.InstancePortEnd {
 			errs = append(errs, ValidationError{
-				Field:   "server.instancePortStart/End",
-				Message: fmt.Sprintf("start port (%d) must be <= end port (%d)", *fc.Server.InstancePortStart, *fc.Server.InstancePortEnd),
+				Field:   "multiInstance.instancePortStart/End",
+				Message: fmt.Sprintf("start port (%d) must be <= end port (%d)", *fc.MultiInstance.InstancePortStart, *fc.MultiInstance.InstancePortEnd),
 			})
 		}
 	}
 
-	// Chrome validation
-	if fc.Chrome.StealthLevel != "" {
-		if !isValidStealthLevel(fc.Chrome.StealthLevel) {
-			errs = append(errs, ValidationError{
-				Field:   "chrome.stealthLevel",
-				Message: fmt.Sprintf("invalid value %q (must be light, medium, or full)", fc.Chrome.StealthLevel),
-			})
-		}
-	}
-	if fc.Chrome.TabEvictionPolicy != "" {
-		if !isValidEvictionPolicy(fc.Chrome.TabEvictionPolicy) {
-			errs = append(errs, ValidationError{
-				Field:   "chrome.tabEvictionPolicy",
-				Message: fmt.Sprintf("invalid value %q (must be reject, close_oldest, or close_lru)", fc.Chrome.TabEvictionPolicy),
-			})
-		}
-	}
-	if fc.Chrome.MaxTabs != nil && *fc.Chrome.MaxTabs < 1 {
+	// Instance defaults validation
+	if fc.InstanceDefaults.Mode != "" && fc.InstanceDefaults.Mode != "headless" && fc.InstanceDefaults.Mode != "headed" {
 		errs = append(errs, ValidationError{
-			Field:   "chrome.maxTabs",
-			Message: fmt.Sprintf("must be >= 1 (got %d)", *fc.Chrome.MaxTabs),
+			Field:   "instanceDefaults.mode",
+			Message: fmt.Sprintf("invalid value %q (must be headless or headed)", fc.InstanceDefaults.Mode),
 		})
 	}
-	if fc.Chrome.MaxParallelTabs != nil && *fc.Chrome.MaxParallelTabs < 0 {
+	if fc.InstanceDefaults.StealthLevel != "" {
+		if !isValidStealthLevel(fc.InstanceDefaults.StealthLevel) {
+			errs = append(errs, ValidationError{
+				Field:   "instanceDefaults.stealthLevel",
+				Message: fmt.Sprintf("invalid value %q (must be light, medium, or full)", fc.InstanceDefaults.StealthLevel),
+			})
+		}
+	}
+	if fc.InstanceDefaults.TabEvictionPolicy != "" {
+		if !isValidEvictionPolicy(fc.InstanceDefaults.TabEvictionPolicy) {
+			errs = append(errs, ValidationError{
+				Field:   "instanceDefaults.tabEvictionPolicy",
+				Message: fmt.Sprintf("invalid value %q (must be reject, close_oldest, or close_lru)", fc.InstanceDefaults.TabEvictionPolicy),
+			})
+		}
+	}
+	if fc.InstanceDefaults.MaxTabs != nil && *fc.InstanceDefaults.MaxTabs < 1 {
 		errs = append(errs, ValidationError{
-			Field:   "chrome.maxParallelTabs",
-			Message: fmt.Sprintf("must be >= 0 (got %d)", *fc.Chrome.MaxParallelTabs),
+			Field:   "instanceDefaults.maxTabs",
+			Message: fmt.Sprintf("must be >= 1 (got %d)", *fc.InstanceDefaults.MaxTabs),
+		})
+	}
+	if fc.InstanceDefaults.MaxParallelTabs != nil && *fc.InstanceDefaults.MaxParallelTabs < 0 {
+		errs = append(errs, ValidationError{
+			Field:   "instanceDefaults.maxParallelTabs",
+			Message: fmt.Sprintf("must be >= 0 (got %d)", *fc.InstanceDefaults.MaxParallelTabs),
 		})
 	}
 
-	// Orchestrator validation
-	if fc.Orchestrator.Strategy != "" {
-		if !isValidStrategy(fc.Orchestrator.Strategy) {
+	// Multi-instance validation
+	if fc.MultiInstance.Strategy != "" {
+		if !isValidStrategy(fc.MultiInstance.Strategy) {
 			errs = append(errs, ValidationError{
-				Field:   "orchestrator.strategy",
-				Message: fmt.Sprintf("invalid value %q (must be simple, explicit, or simple-autorestart)", fc.Orchestrator.Strategy),
+				Field:   "multiInstance.strategy",
+				Message: fmt.Sprintf("invalid value %q (must be simple, explicit, or simple-autorestart)", fc.MultiInstance.Strategy),
 			})
 		}
 	}
-	if fc.Orchestrator.AllocationPolicy != "" {
-		if !isValidAllocationPolicy(fc.Orchestrator.AllocationPolicy) {
+	if fc.MultiInstance.AllocationPolicy != "" {
+		if !isValidAllocationPolicy(fc.MultiInstance.AllocationPolicy) {
 			errs = append(errs, ValidationError{
-				Field:   "orchestrator.allocationPolicy",
-				Message: fmt.Sprintf("invalid value %q (must be fcfs, round_robin, or random)", fc.Orchestrator.AllocationPolicy),
+				Field:   "multiInstance.allocationPolicy",
+				Message: fmt.Sprintf("invalid value %q (must be fcfs, round_robin, or random)", fc.MultiInstance.AllocationPolicy),
+			})
+		}
+	}
+
+	// Attach validation
+	for _, scheme := range fc.Attach.AllowSchemes {
+		if !isValidAttachScheme(scheme) {
+			errs = append(errs, ValidationError{
+				Field:   "attach.allowSchemes",
+				Message: fmt.Sprintf("invalid value %q (must be ws or wss)", scheme),
 			})
 		}
 	}
@@ -188,6 +204,15 @@ func isValidAllocationPolicy(policy string) bool {
 	}
 }
 
+func isValidAttachScheme(scheme string) bool {
+	switch scheme {
+	case "ws", "wss":
+		return true
+	default:
+		return false
+	}
+}
+
 // ValidStealthLevels returns all valid stealth level values.
 func ValidStealthLevels() []string {
 	return []string{"light", "medium", "full"}
@@ -206,4 +231,9 @@ func ValidStrategies() []string {
 // ValidAllocationPolicies returns all valid allocation policy values.
 func ValidAllocationPolicies() []string {
 	return []string{"fcfs", "round_robin", "random"}
+}
+
+// ValidAttachSchemes returns all valid attach URL schemes.
+func ValidAttachSchemes() []string {
+	return []string{"ws", "wss"}
 }

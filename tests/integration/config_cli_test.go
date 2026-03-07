@@ -46,8 +46,8 @@ func TestConfigCLI_Init(t *testing.T) {
 	if _, ok := cfg["server"]; !ok {
 		t.Error("expected 'server' section in config")
 	}
-	if _, ok := cfg["chrome"]; !ok {
-		t.Error("expected 'chrome' section in config")
+	if _, ok := cfg["browser"]; !ok {
+		t.Error("expected 'browser' section in config")
 	}
 }
 
@@ -75,8 +75,8 @@ func TestConfigCLI_Show(t *testing.T) {
 	if !strings.Contains(output, "Server:") {
 		t.Errorf("expected output to contain 'Server:' section, got: %s", output)
 	}
-	if !strings.Contains(output, "Chrome:") {
-		t.Errorf("expected output to contain 'Chrome:' section, got: %s", output)
+	if !strings.Contains(output, "Browser / Instance Defaults:") {
+		t.Errorf("expected output to contain 'Browser / Instance Defaults:' section, got: %s", output)
 	}
 }
 
@@ -151,7 +151,7 @@ func TestConfigCLI_Patch(t *testing.T) {
 	}
 
 	// Patch with JSON
-	patchJSON := `{"server":{"port":"7777"},"chrome":{"maxTabs":100}}`
+	patchJSON := `{"server":{"port":"7777"},"instanceDefaults":{"maxTabs":100}}`
 	patchCmd := exec.Command(server.BinaryPath, "config", "patch", patchJSON)
 	patchCmd.Env = append(filterTestEnv(), "PINCHTAB_CONFIG="+configPath)
 
@@ -173,13 +173,13 @@ func TestConfigCLI_Patch(t *testing.T) {
 		t.Errorf("expected port 7777, got %v", server["port"])
 	}
 
-	chrome, ok := cfg["chrome"].(map[string]any)
+	instanceDefaults, ok := cfg["instanceDefaults"].(map[string]any)
 	if !ok {
-		t.Fatal("chrome section not found")
+		t.Fatal("instanceDefaults section not found")
 	}
 	// JSON unmarshals numbers as float64
-	if chrome["maxTabs"] != float64(100) {
-		t.Errorf("expected maxTabs 100, got %v", chrome["maxTabs"])
+	if instanceDefaults["maxTabs"] != float64(100) {
+		t.Errorf("expected maxTabs 100, got %v", instanceDefaults["maxTabs"])
 	}
 }
 
@@ -191,8 +191,8 @@ func TestConfigCLI_Validate_Valid(t *testing.T) {
 	// Create a valid config
 	validConfig := `{
 		"server": {"port": "9867"},
-		"chrome": {"stealthLevel": "light", "tabEvictionPolicy": "reject"},
-		"orchestrator": {"strategy": "simple", "allocationPolicy": "fcfs"}
+		"instanceDefaults": {"stealthLevel": "light", "tabEvictionPolicy": "reject"},
+		"multiInstance": {"strategy": "simple", "allocationPolicy": "fcfs"}
 	}`
 	if err := os.WriteFile(configPath, []byte(validConfig), 0644); err != nil {
 		t.Fatal(err)
@@ -219,8 +219,8 @@ func TestConfigCLI_Validate_Invalid(t *testing.T) {
 	// Create an invalid config
 	invalidConfig := `{
 		"server": {"port": "99999"},
-		"chrome": {"stealthLevel": "superstealth"},
-		"orchestrator": {"strategy": "magical"}
+		"instanceDefaults": {"stealthLevel": "superstealth"},
+		"multiInstance": {"strategy": "magical"}
 	}`
 	if err := os.WriteFile(configPath, []byte(invalidConfig), 0644); err != nil {
 		t.Fatal(err)

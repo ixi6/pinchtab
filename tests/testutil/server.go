@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	appconfig "github.com/pinchtab/pinchtab/internal/config"
 )
 
 const (
@@ -107,6 +109,11 @@ func StartServer(cfg ServerConfig) (*Server, error) {
 		}
 	}
 
+	if err := writeServerConfig(filepath.Join(s.Dir, "config.json"), s, cfg); err != nil {
+		s.Cleanup()
+		return nil, fmt.Errorf("write config: %w", err)
+	}
+
 	build := exec.Command("go", "build", "-o", s.BinaryPath, "./cmd/pinchtab/") // #nosec G204 -- BinaryPath is from os.MkdirTemp, not user input
 	build.Dir = FindRepoRoot()
 	build.Stdout = os.Stdout
@@ -119,43 +126,17 @@ func StartServer(cfg ServerConfig) (*Server, error) {
 	// Strip existing BRIDGE_*/PINCHTAB_* to avoid test pollution from host config
 	env := filterEnv(os.Environ(), "BRIDGE_", "PINCHTAB_")
 
-	// Core server config
+	// Keep env limited to process wiring. Runtime behavior now comes from config.json.
 	env = append(env,
 		"PINCHTAB_PORT="+cfg.Port,
-		"PINCHTAB_HEADLESS="+boolStr(cfg.Headless),
-		"PINCHTAB_NO_RESTORE=true",
-		"PINCHTAB_STEALTH="+cfg.Stealth,
-		"PINCHTAB_STATE_DIR="+s.StateDir,
-		"PINCHTAB_PROFILE_DIR="+s.ProfileDir,
 		"PINCHTAB_CONFIG="+filepath.Join(s.Dir, "config.json"), // Isolate from host config
 	)
 
-	// Security flags from ServerConfig
-	env = append(env,
-		"PINCHTAB_ALLOW_EVALUATE="+boolStr(cfg.AllowEvaluate),
-		"PINCHTAB_ALLOW_MACRO="+boolStr(cfg.AllowMacro),
-		"PINCHTAB_ALLOW_SCREENCAST="+boolStr(cfg.AllowScreencast),
-		"PINCHTAB_ALLOW_DOWNLOAD="+boolStr(cfg.AllowDownload),
-		"PINCHTAB_ALLOW_UPLOAD="+boolStr(cfg.AllowUpload),
-	)
-
-	// Optional config overrides (only set if non-default)
-	if cfg.TabEvictionPolicy != "" {
-		env = append(env, "PINCHTAB_TAB_EVICTION_POLICY="+cfg.TabEvictionPolicy)
-	}
-	if cfg.Strategy != "" {
-		env = append(env, "PINCHTAB_STRATEGY="+cfg.Strategy)
-	}
-	if cfg.AllocationPolicy != "" {
-		env = append(env, "PINCHTAB_ALLOCATION_POLICY="+cfg.AllocationPolicy)
-	}
-	if cfg.MaxTabs > 0 {
-		env = append(env, fmt.Sprintf("PINCHTAB_MAX_TABS=%d", cfg.MaxTabs))
-	}
-
 	// Chrome binary from host (for CI environments)
-	if bin := os.Getenv("CHROME_BINARY"); bin != "" {
-		env = append(env, "CHROME_BINARY="+bin)
+	if bin := os.Getenv("CHROME_BIN"); bin != "" {
+		env = append(env, "CHROME_BIN="+bin)
+	} else if legacyBin := os.Getenv("CHROME_BINARY"); legacyBin != "" {
+		env = append(env, "CHROME_BIN="+legacyBin)
 	}
 
 	s.cmd = exec.Command(s.BinaryPath) // #nosec G204 -- BinaryPath is from os.MkdirTemp, not user input
@@ -179,6 +160,57 @@ func StartServer(cfg ServerConfig) (*Server, error) {
 	}
 
 	return s, nil
+}
+
+func writeServerConfig(path string, srv *Server, cfg ServerConfig) error {
+	fc := appconfig.DefaultFileConfig()
+	fc.Server.Port = cfg.Port
+	fc.Server.StateDir = srv.StateDir
+	fc.Profiles.BaseDir = srv.ProfileDir
+	fc.Profiles.DefaultProfile = "default"
+
+	fc.InstanceDefaults.Mode = modeString(cfg.Headless)
+	noRestore := true
+	fc.InstanceDefaults.NoRestore = &noRestore
+	fc.InstanceDefaults.StealthLevel = cfg.Stealth
+	if cfg.MaxTabs > 0 {
+		maxTabs := cfg.MaxTabs
+		fc.InstanceDefaults.MaxTabs = &maxTabs
+	}
+	if cfg.TabEvictionPolicy != "" {
+		fc.InstanceDefaults.TabEvictionPolicy = cfg.TabEvictionPolicy
+	}
+
+	allowEvaluate := cfg.AllowEvaluate
+	allowMacro := cfg.AllowMacro
+	allowScreencast := cfg.AllowScreencast
+	allowDownload := cfg.AllowDownload
+	allowUpload := cfg.AllowUpload
+	fc.Security.AllowEvaluate = &allowEvaluate
+	fc.Security.AllowMacro = &allowMacro
+	fc.Security.AllowScreencast = &allowScreencast
+	fc.Security.AllowDownload = &allowDownload
+	fc.Security.AllowUpload = &allowUpload
+
+	if cfg.Strategy != "" {
+		fc.MultiInstance.Strategy = cfg.Strategy
+	}
+	if cfg.AllocationPolicy != "" {
+		fc.MultiInstance.AllocationPolicy = cfg.AllocationPolicy
+	}
+
+	data, err := json.MarshalIndent(fc, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
+func modeString(headless bool) string {
+	if headless {
+		return "headless"
+	}
+	return "headed"
 }
 
 func (s *Server) Stop() {
@@ -342,11 +374,4 @@ func filterEnv(env []string, prefixes ...string) []string {
 		}
 	}
 	return out
-}
-
-func boolStr(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
 }

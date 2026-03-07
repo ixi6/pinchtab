@@ -45,32 +45,6 @@ func TestEnvIntOr(t *testing.T) {
 	}
 }
 
-func TestEnvBoolOr(t *testing.T) {
-	key := "PINCHTAB_TEST_BOOL"
-	fallback := true
-
-	_ = os.Unsetenv(key)
-	if got := envBoolOr(key, fallback); got != fallback {
-		t.Errorf("envBoolOr() = %v, want %v", got, fallback)
-	}
-
-	tests := []struct {
-		val  string
-		want bool
-	}{
-		{"1", true}, {"true", true}, {"yes", true}, {"on", true},
-		{"0", false}, {"false", false}, {"no", false}, {"off", false},
-		{"garbage", true}, // should return fallback
-	}
-
-	for _, tt := range tests {
-		_ = os.Setenv(key, tt.val)
-		if got := envBoolOr(key, fallback); got != tt.want {
-			t.Errorf("envBoolOr(%q) = %v, want %v", tt.val, got, tt.want)
-		}
-	}
-}
-
 func TestMaskToken(t *testing.T) {
 	tests := []struct {
 		token string
@@ -113,6 +87,12 @@ func TestLoadConfigDefaults(t *testing.T) {
 	if cfg.TabEvictionPolicy != "reject" {
 		t.Errorf("default TabEvictionPolicy = %v, want reject", cfg.TabEvictionPolicy)
 	}
+	if cfg.AttachEnabled {
+		t.Errorf("default AttachEnabled = %v, want false", cfg.AttachEnabled)
+	}
+	if len(cfg.AttachAllowSchemes) != 2 || cfg.AttachAllowSchemes[0] != "ws" || cfg.AttachAllowSchemes[1] != "wss" {
+		t.Errorf("default AttachAllowSchemes = %v, want [ws wss]", cfg.AttachAllowSchemes)
+	}
 }
 
 func TestLoadConfigEnvOverrides(t *testing.T) {
@@ -120,63 +100,50 @@ func TestLoadConfigEnvOverrides(t *testing.T) {
 	// Point to non-existent config to isolate env var testing
 	_ = os.Setenv("PINCHTAB_CONFIG", filepath.Join(t.TempDir(), "nonexistent.json"))
 	_ = os.Setenv("PINCHTAB_PORT", "1234")
-	_ = os.Setenv("PINCHTAB_ALLOW_EVALUATE", "1")
-	_ = os.Setenv("PINCHTAB_STRATEGY", "explicit")
+	_ = os.Setenv("PINCHTAB_BIND", "0.0.0.0")
+	_ = os.Setenv("PINCHTAB_TOKEN", "secret")
+	_ = os.Setenv("CHROME_BIN", "/tmp/chrome")
 	defer func() {
 		_ = os.Unsetenv("PINCHTAB_CONFIG")
 		_ = os.Unsetenv("PINCHTAB_PORT")
-		_ = os.Unsetenv("PINCHTAB_ALLOW_EVALUATE")
-		_ = os.Unsetenv("PINCHTAB_STRATEGY")
+		_ = os.Unsetenv("PINCHTAB_BIND")
+		_ = os.Unsetenv("PINCHTAB_TOKEN")
+		_ = os.Unsetenv("CHROME_BIN")
 	}()
 
 	cfg := Load()
 	if cfg.Port != "1234" {
 		t.Errorf("env Port = %v, want 1234", cfg.Port)
 	}
-	if !cfg.AllowEvaluate {
-		t.Errorf("env AllowEvaluate = %v, want true", cfg.AllowEvaluate)
+	if cfg.Bind != "0.0.0.0" {
+		t.Errorf("env Bind = %v, want 0.0.0.0", cfg.Bind)
 	}
-	if cfg.Strategy != "explicit" {
-		t.Errorf("env Strategy = %v, want explicit", cfg.Strategy)
+	if cfg.Token != "secret" {
+		t.Errorf("env Token = %v, want secret", cfg.Token)
 	}
-}
-
-func TestLegacyBridgeEnvFallback(t *testing.T) {
-	clearConfigEnvVars(t)
-	// Point to non-existent config to isolate env var testing
-	_ = os.Setenv("PINCHTAB_CONFIG", filepath.Join(t.TempDir(), "nonexistent.json"))
-	_ = os.Setenv("BRIDGE_PORT", "5555")
-	_ = os.Setenv("BRIDGE_ALLOW_EVALUATE", "true")
-	defer func() {
-		_ = os.Unsetenv("PINCHTAB_CONFIG")
-		_ = os.Unsetenv("BRIDGE_PORT")
-		_ = os.Unsetenv("BRIDGE_ALLOW_EVALUATE")
-	}()
-
-	cfg := Load()
-	if cfg.Port != "5555" {
-		t.Errorf("legacy fallback Port = %v, want 5555", cfg.Port)
-	}
-	if !cfg.AllowEvaluate {
-		t.Errorf("legacy fallback AllowEvaluate = %v, want true", cfg.AllowEvaluate)
+	if cfg.ChromeBinary != "/tmp/chrome" {
+		t.Errorf("env ChromeBinary = %v, want /tmp/chrome", cfg.ChromeBinary)
 	}
 }
 
 func TestPinchtabEnvTakesPrecedence(t *testing.T) {
 	clearConfigEnvVars(t)
-	// Point to non-existent config to isolate env var testing
-	_ = os.Setenv("PINCHTAB_CONFIG", filepath.Join(t.TempDir(), "nonexistent.json"))
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+	_ = os.Setenv("PINCHTAB_CONFIG", configPath)
 	_ = os.Setenv("PINCHTAB_PORT", "7777")
-	_ = os.Setenv("BRIDGE_PORT", "8888")
 	defer func() {
 		_ = os.Unsetenv("PINCHTAB_CONFIG")
 		_ = os.Unsetenv("PINCHTAB_PORT")
-		_ = os.Unsetenv("BRIDGE_PORT")
 	}()
+
+	if err := os.WriteFile(configPath, []byte(`{"server":{"port":"8888"}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := Load()
 	if cfg.Port != "7777" {
-		t.Errorf("precedence Port = %v, want 7777 (PINCHTAB_ should win)", cfg.Port)
+		t.Errorf("precedence Port = %v, want 7777", cfg.Port)
 	}
 }
 
@@ -188,11 +155,14 @@ func TestDefaultFileConfig(t *testing.T) {
 	if fc.Server.Bind != "127.0.0.1" {
 		t.Errorf("DefaultFileConfig.Server.Bind = %v, want 127.0.0.1", fc.Server.Bind)
 	}
-	if *fc.Chrome.Headless != true {
-		t.Errorf("DefaultFileConfig.Chrome.Headless = %v, want true", *fc.Chrome.Headless)
+	if fc.InstanceDefaults.Mode != "headless" {
+		t.Errorf("DefaultFileConfig.InstanceDefaults.Mode = %v, want headless", fc.InstanceDefaults.Mode)
 	}
-	if fc.Orchestrator.Strategy != "simple" {
-		t.Errorf("DefaultFileConfig.Orchestrator.Strategy = %v, want simple", fc.Orchestrator.Strategy)
+	if fc.MultiInstance.Strategy != "simple" {
+		t.Errorf("DefaultFileConfig.MultiInstance.Strategy = %v, want simple", fc.MultiInstance.Strategy)
+	}
+	if len(fc.Attach.AllowSchemes) != 2 || fc.Attach.AllowSchemes[0] != "ws" || fc.Attach.AllowSchemes[1] != "wss" {
+		t.Errorf("DefaultFileConfig.Attach.AllowSchemes = %v, want [ws wss]", fc.Attach.AllowSchemes)
 	}
 }
 
@@ -212,8 +182,8 @@ func TestLoadNestedConfig(t *testing.T) {
 			"bind": "0.0.0.0",
 			"token": "secret123"
 		},
-		"chrome": {
-			"headless": false,
+		"instanceDefaults": {
+			"mode": "headed",
 			"maxTabs": 50,
 			"stealthLevel": "full",
 			"tabEvictionPolicy": "close_oldest"
@@ -221,9 +191,14 @@ func TestLoadNestedConfig(t *testing.T) {
 		"security": {
 			"allowEvaluate": true
 		},
-		"orchestrator": {
+		"multiInstance": {
 			"strategy": "explicit",
 			"allocationPolicy": "round_robin"
+		},
+		"attach": {
+			"enabled": true,
+			"allowHosts": ["localhost", "chrome.internal"],
+			"allowSchemes": ["wss"]
 		},
 		"timeouts": {
 			"actionSec": 60,
@@ -247,7 +222,7 @@ func TestLoadNestedConfig(t *testing.T) {
 		t.Errorf("nested Token = %v, want secret123", cfg.Token)
 	}
 
-	// Chrome
+	// Instance defaults
 	if cfg.Headless != false {
 		t.Errorf("nested Headless = %v, want false", cfg.Headless)
 	}
@@ -266,12 +241,21 @@ func TestLoadNestedConfig(t *testing.T) {
 		t.Errorf("nested AllowEvaluate = %v, want true", cfg.AllowEvaluate)
 	}
 
-	// Orchestrator
+	// Multi-instance
 	if cfg.Strategy != "explicit" {
 		t.Errorf("nested Strategy = %v, want explicit", cfg.Strategy)
 	}
 	if cfg.AllocationPolicy != "round_robin" {
 		t.Errorf("nested AllocationPolicy = %v, want round_robin", cfg.AllocationPolicy)
+	}
+	if cfg.AttachEnabled != true {
+		t.Errorf("nested AttachEnabled = %v, want true", cfg.AttachEnabled)
+	}
+	if len(cfg.AttachAllowHosts) != 2 || cfg.AttachAllowHosts[1] != "chrome.internal" {
+		t.Errorf("nested AttachAllowHosts = %v, want [localhost chrome.internal]", cfg.AttachAllowHosts)
+	}
+	if len(cfg.AttachAllowSchemes) != 1 || cfg.AttachAllowSchemes[0] != "wss" {
+		t.Errorf("nested AttachAllowSchemes = %v, want [wss]", cfg.AttachAllowSchemes)
 	}
 
 	// Timeouts
@@ -335,11 +319,9 @@ func TestEnvOverridesNestedConfig(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.json")
 	_ = os.Setenv("PINCHTAB_CONFIG", configPath)
 	_ = os.Setenv("PINCHTAB_PORT", "9999")
-	_ = os.Setenv("PINCHTAB_STRATEGY", "simple-autorestart")
 	defer func() {
 		_ = os.Unsetenv("PINCHTAB_CONFIG")
 		_ = os.Unsetenv("PINCHTAB_PORT")
-		_ = os.Unsetenv("PINCHTAB_STRATEGY")
 	}()
 
 	// Config file says port 8888 and strategy explicit
@@ -347,7 +329,7 @@ func TestEnvOverridesNestedConfig(t *testing.T) {
 		"server": {
 			"port": "8888"
 		},
-		"orchestrator": {
+		"multiInstance": {
 			"strategy": "explicit"
 		}
 	}`
@@ -361,8 +343,8 @@ func TestEnvOverridesNestedConfig(t *testing.T) {
 	if cfg.Port != "9999" {
 		t.Errorf("env should override file: Port = %v, want 9999", cfg.Port)
 	}
-	if cfg.Strategy != "simple-autorestart" {
-		t.Errorf("env should override file: Strategy = %v, want simple-autorestart", cfg.Strategy)
+	if cfg.Strategy != "explicit" {
+		t.Errorf("file should supply Strategy = %v, want explicit", cfg.Strategy)
 	}
 }
 
@@ -391,8 +373,13 @@ func TestIsLegacyConfig(t *testing.T) {
 			isLegacy: false,
 		},
 		{
-			name:     "nested format with chrome",
-			json:     `{"chrome": {"headless": true}}`,
+			name:     "nested format with instanceDefaults",
+			json:     `{"instanceDefaults": {"mode": "headless"}}`,
+			isLegacy: false,
+		},
+		{
+			name:     "nested format with attach",
+			json:     `{"attach": {"enabled": true}}`,
 			isLegacy: false,
 		},
 		{
@@ -445,11 +432,11 @@ func TestConvertLegacyConfig(t *testing.T) {
 	if fc.Server.Port != "7777" {
 		t.Errorf("converted Server.Port = %v, want 7777", fc.Server.Port)
 	}
-	if *fc.Chrome.Headless != false {
-		t.Errorf("converted Chrome.Headless = %v, want false", *fc.Chrome.Headless)
+	if fc.InstanceDefaults.Mode != "headed" {
+		t.Errorf("converted InstanceDefaults.Mode = %v, want headed", fc.InstanceDefaults.Mode)
 	}
-	if *fc.Chrome.MaxTabs != 25 {
-		t.Errorf("converted Chrome.MaxTabs = %v, want 25", *fc.Chrome.MaxTabs)
+	if *fc.InstanceDefaults.MaxTabs != 25 {
+		t.Errorf("converted InstanceDefaults.MaxTabs = %v, want 25", *fc.InstanceDefaults.MaxTabs)
 	}
 	if *fc.Security.AllowEvaluate != true {
 		t.Errorf("converted Security.AllowEvaluate = %v, want true", *fc.Security.AllowEvaluate)
@@ -479,8 +466,8 @@ func TestDefaultFileConfigJSON(t *testing.T) {
 	if parsed.Server.Port != "9867" {
 		t.Errorf("round-trip Server.Port = %v, want 9867", parsed.Server.Port)
 	}
-	if *parsed.Chrome.Headless != true {
-		t.Errorf("round-trip Chrome.Headless = %v, want true", *parsed.Chrome.Headless)
+	if parsed.InstanceDefaults.Mode != "headless" {
+		t.Errorf("round-trip InstanceDefaults.Mode = %v, want headless", parsed.InstanceDefaults.Mode)
 	}
 }
 
@@ -495,18 +482,7 @@ func clearConfigEnvVars(t *testing.T) {
 	t.Helper()
 	envVars := []string{
 		"PINCHTAB_PORT", "PINCHTAB_BIND", "PINCHTAB_TOKEN", "PINCHTAB_CONFIG",
-		"PINCHTAB_STATE_DIR", "PINCHTAB_PROFILE_DIR", "PINCHTAB_HEADLESS",
-		"PINCHTAB_MAX_TABS", "PINCHTAB_ALLOW_EVALUATE", "PINCHTAB_ALLOW_MACRO",
-		"PINCHTAB_ALLOW_SCREENCAST", "PINCHTAB_ALLOW_DOWNLOAD", "PINCHTAB_ALLOW_UPLOAD",
-		"PINCHTAB_STRATEGY", "PINCHTAB_ALLOCATION_POLICY", "PINCHTAB_TAB_EVICTION_POLICY",
-		"PINCHTAB_STEALTH", "PINCHTAB_NO_RESTORE", "PINCHTAB_NO_ANIMATIONS",
-		"PINCHTAB_TIMEOUT", "PINCHTAB_NAV_TIMEOUT",
-		"BRIDGE_PORT", "BRIDGE_BIND", "BRIDGE_TOKEN", "BRIDGE_CONFIG",
-		"BRIDGE_STATE_DIR", "BRIDGE_PROFILE", "BRIDGE_HEADLESS",
-		"BRIDGE_MAX_TABS", "BRIDGE_ALLOW_EVALUATE",
-		"BRIDGE_STEALTH", "BRIDGE_NO_RESTORE", "BRIDGE_NO_ANIMATIONS",
-		"BRIDGE_TIMEOUT", "BRIDGE_NAV_TIMEOUT",
-		"CDP_URL", "CHROME_BIN", "CHROME_BINARY", "CHROME_FLAGS",
+		"CHROME_BIN",
 	}
 	for _, v := range envVars {
 		_ = os.Unsetenv(v)

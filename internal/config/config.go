@@ -19,7 +19,6 @@ type RuntimeConfig struct {
 	Port              string
 	InstancePortStart int // Starting port for instances (default 9868)
 	InstancePortEnd   int // Ending port for instances (default 9968)
-	CdpURL            string
 	Token             string
 	StateDir          string
 
@@ -30,10 +29,12 @@ type RuntimeConfig struct {
 	AllowDownload   bool
 	AllowUpload     bool
 
-	// Chrome settings
+	// Browser/instance settings
 	Headless          bool
 	NoRestore         bool
 	ProfileDir        string
+	ProfilesBaseDir   string
+	DefaultProfile    string
 	ChromeVersion     string
 	Timezone          string
 	BlockImages       bool
@@ -58,50 +59,64 @@ type RuntimeConfig struct {
 	// Orchestrator settings (dashboard mode only)
 	Strategy         string // "simple" (default), "explicit", or "simple-autorestart"
 	AllocationPolicy string // "fcfs" (default), "round_robin", "random"
+
+	// Attach settings
+	AttachEnabled      bool
+	AttachAllowHosts   []string
+	AttachAllowSchemes []string
 }
 
 // --- Nested FileConfig structure (PR #91 model) ---
 
 // FileConfig is the persistent configuration written to disk.
-// Uses nested sections for organization: Server, Chrome, Orchestrator, Timeouts.
+// Uses nested sections that match actual runtime ownership.
 type FileConfig struct {
-	Server       ServerConfig       `json:"server,omitempty"`
-	Chrome       ChromeConfig       `json:"chrome,omitempty"`
-	Security     SecurityConfig     `json:"security,omitempty"`
-	Orchestrator OrchestratorConfig `json:"orchestrator,omitempty"`
-	Timeouts     TimeoutsConfig     `json:"timeouts,omitempty"`
+	Server           ServerConfig           `json:"server,omitempty"`
+	Browser          BrowserConfig          `json:"browser,omitempty"`
+	InstanceDefaults InstanceDefaultsConfig `json:"instanceDefaults,omitempty"`
+	Security         SecurityConfig         `json:"security,omitempty"`
+	Profiles         ProfilesConfig         `json:"profiles,omitempty"`
+	MultiInstance    MultiInstanceConfig    `json:"multiInstance,omitempty"`
+	Attach           AttachConfig           `json:"attach,omitempty"`
+	Timeouts         TimeoutsConfig         `json:"timeouts,omitempty"`
 }
 
 // ServerConfig holds server/network settings.
 type ServerConfig struct {
-	Port              string `json:"port,omitempty"`
-	Bind              string `json:"bind,omitempty"`
-	Token             string `json:"token,omitempty"`
-	StateDir          string `json:"stateDir,omitempty"`
-	CdpURL            string `json:"cdpUrl,omitempty"`
-	InstancePortStart *int   `json:"instancePortStart,omitempty"`
-	InstancePortEnd   *int   `json:"instancePortEnd,omitempty"`
+	Port     string `json:"port,omitempty"`
+	Bind     string `json:"bind,omitempty"`
+	Token    string `json:"token,omitempty"`
+	StateDir string `json:"stateDir,omitempty"`
 }
 
-// ChromeConfig holds browser/Chrome settings.
-type ChromeConfig struct {
-	Headless          *bool    `json:"headless,omitempty"`
-	NoRestore         *bool    `json:"noRestore,omitempty"`
-	ProfileDir        string   `json:"profileDir,omitempty"`
-	ChromeVersion     string   `json:"chromeVersion,omitempty"`
-	Timezone          string   `json:"timezone,omitempty"`
-	BlockImages       *bool    `json:"blockImages,omitempty"`
-	BlockMedia        *bool    `json:"blockMedia,omitempty"`
-	BlockAds          *bool    `json:"blockAds,omitempty"`
-	MaxTabs           *int     `json:"maxTabs,omitempty"`
-	MaxParallelTabs   *int     `json:"maxParallelTabs,omitempty"`
-	ChromeBinary      string   `json:"chromeBinary,omitempty"`
-	ChromeExtraFlags  string   `json:"chromeExtraFlags,omitempty"`
-	ExtensionPaths    []string `json:"extensionPaths,omitempty"`
-	UserAgent         string   `json:"userAgent,omitempty"`
-	NoAnimations      *bool    `json:"noAnimations,omitempty"`
-	StealthLevel      string   `json:"stealthLevel,omitempty"`
-	TabEvictionPolicy string   `json:"tabEvictionPolicy,omitempty"`
+// BrowserConfig holds Chrome executable/runtime wiring.
+type BrowserConfig struct {
+	ChromeVersion    string   `json:"version,omitempty"`
+	ChromeBinary     string   `json:"binary,omitempty"`
+	ChromeExtraFlags string   `json:"extraFlags,omitempty"`
+	ExtensionPaths   []string `json:"extensionPaths,omitempty"`
+}
+
+// InstanceDefaultsConfig holds the default behavior for a launched browser instance.
+type InstanceDefaultsConfig struct {
+	Mode              string `json:"mode,omitempty"`
+	NoRestore         *bool  `json:"noRestore,omitempty"`
+	Timezone          string `json:"timezone,omitempty"`
+	BlockImages       *bool  `json:"blockImages,omitempty"`
+	BlockMedia        *bool  `json:"blockMedia,omitempty"`
+	BlockAds          *bool  `json:"blockAds,omitempty"`
+	MaxTabs           *int   `json:"maxTabs,omitempty"`
+	MaxParallelTabs   *int   `json:"maxParallelTabs,omitempty"`
+	UserAgent         string `json:"userAgent,omitempty"`
+	NoAnimations      *bool  `json:"noAnimations,omitempty"`
+	StealthLevel      string `json:"stealthLevel,omitempty"`
+	TabEvictionPolicy string `json:"tabEvictionPolicy,omitempty"`
+}
+
+// ProfilesConfig holds profile storage defaults.
+type ProfilesConfig struct {
+	BaseDir        string `json:"baseDir,omitempty"`
+	DefaultProfile string `json:"defaultProfile,omitempty"`
 }
 
 // SecurityConfig holds security/permission settings.
@@ -113,10 +128,19 @@ type SecurityConfig struct {
 	AllowUpload     *bool `json:"allowUpload,omitempty"`
 }
 
-// OrchestratorConfig holds orchestrator/strategy settings.
-type OrchestratorConfig struct {
-	Strategy         string `json:"strategy,omitempty"`
-	AllocationPolicy string `json:"allocationPolicy,omitempty"`
+// MultiInstanceConfig holds multi-instance orchestration settings.
+type MultiInstanceConfig struct {
+	Strategy          string `json:"strategy,omitempty"`
+	AllocationPolicy  string `json:"allocationPolicy,omitempty"`
+	InstancePortStart *int   `json:"instancePortStart,omitempty"`
+	InstancePortEnd   *int   `json:"instancePortEnd,omitempty"`
+}
+
+// AttachConfig holds policy for attaching to externally managed Chrome instances.
+type AttachConfig struct {
+	Enabled      *bool    `json:"enabled,omitempty"`
+	AllowHosts   []string `json:"allowHosts,omitempty"`
+	AllowSchemes []string `json:"allowSchemes,omitempty"`
 }
 
 // TimeoutsConfig holds timeout settings.
@@ -134,7 +158,6 @@ type legacyFileConfig struct {
 	Port              string `json:"port"`
 	InstancePortStart *int   `json:"instancePortStart,omitempty"`
 	InstancePortEnd   *int   `json:"instancePortEnd,omitempty"`
-	CdpURL            string `json:"cdpUrl,omitempty"`
 	Token             string `json:"token,omitempty"`
 	AllowEvaluate     *bool  `json:"allowEvaluate,omitempty"`
 	AllowMacro        *bool  `json:"allowMacro,omitempty"`
@@ -156,19 +179,27 @@ func convertLegacyConfig(lc *legacyFileConfig) *FileConfig {
 
 	// Server
 	fc.Server.Port = lc.Port
-	fc.Server.CdpURL = lc.CdpURL
 	fc.Server.Token = lc.Token
 	fc.Server.StateDir = lc.StateDir
-	fc.Server.InstancePortStart = lc.InstancePortStart
-	fc.Server.InstancePortEnd = lc.InstancePortEnd
 
-	// Chrome
-	fc.Chrome.Headless = lc.Headless
-	fc.Chrome.ProfileDir = lc.ProfileDir
-	fc.Chrome.MaxTabs = lc.MaxTabs
+	// Browser / instance defaults
+	if lc.Headless != nil {
+		if *lc.Headless {
+			fc.InstanceDefaults.Mode = "headless"
+		} else {
+			fc.InstanceDefaults.Mode = "headed"
+		}
+	}
+	fc.InstanceDefaults.MaxTabs = lc.MaxTabs
 	if lc.NoRestore {
 		b := true
-		fc.Chrome.NoRestore = &b
+		fc.InstanceDefaults.NoRestore = &b
+	}
+
+	// Profiles
+	if lc.ProfileDir != "" {
+		fc.Profiles.BaseDir = filepath.Dir(lc.ProfileDir)
+		fc.Profiles.DefaultProfile = filepath.Base(lc.ProfileDir)
 	}
 
 	// Security
@@ -182,6 +213,10 @@ func convertLegacyConfig(lc *legacyFileConfig) *FileConfig {
 	fc.Timeouts.ActionSec = lc.TimeoutSec
 	fc.Timeouts.NavigateSec = lc.NavigateSec
 
+	// Multi-instance
+	fc.MultiInstance.InstancePortStart = lc.InstancePortStart
+	fc.MultiInstance.InstancePortEnd = lc.InstancePortEnd
+
 	return fc
 }
 
@@ -193,11 +228,29 @@ func isLegacyConfig(data []byte) bool {
 		return false
 	}
 
-	// If "server" or "chrome" keys exist, it's new format
+	// If any new nested keys exist, it's new format
 	if _, hasServer := probe["server"]; hasServer {
 		return false
 	}
-	if _, hasChrome := probe["chrome"]; hasChrome {
+	if _, hasBrowser := probe["browser"]; hasBrowser {
+		return false
+	}
+	if _, hasInstanceDefaults := probe["instanceDefaults"]; hasInstanceDefaults {
+		return false
+	}
+	if _, hasProfiles := probe["profiles"]; hasProfiles {
+		return false
+	}
+	if _, hasMultiInstance := probe["multiInstance"]; hasMultiInstance {
+		return false
+	}
+	if _, hasSecurity := probe["security"]; hasSecurity {
+		return false
+	}
+	if _, hasAttach := probe["attach"]; hasAttach {
+		return false
+	}
+	if _, hasTimeouts := probe["timeouts"]; hasTimeouts {
 		return false
 	}
 
@@ -232,102 +285,6 @@ func envIntOr(key string, fallback int) int {
 		return fallback
 	}
 	return n
-}
-
-// splitCommaPaths splits a comma-separated string into non-empty trimmed paths.
-func splitCommaPaths(s string) []string {
-	if s == "" {
-		return nil
-	}
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func envBoolOr(key string, fallback bool) bool {
-	v, ok := os.LookupEnv(key)
-	if !ok {
-		return fallback
-	}
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return fallback
-	}
-}
-
-func envMigrate(newKey, oldKey string) string {
-	if v := os.Getenv(newKey); v != "" {
-		return v
-	}
-	if v := os.Getenv(oldKey); v != "" {
-		slog.Warn("deprecated env var, use "+newKey+" instead", "var", oldKey)
-		return v
-	}
-	return ""
-}
-
-func envOrMigrate(newKey, oldKey, fallback string) string {
-	if v := envMigrate(newKey, oldKey); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func envIntOrMigrate(newKey, oldKey string, fallback int) int {
-	v := envMigrate(newKey, oldKey)
-	if v == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil || n < 0 {
-		return fallback
-	}
-	return n
-}
-
-func envBoolOrMigrate(newKey, oldKey string, fallback bool) bool {
-	if v, ok := os.LookupEnv(newKey); ok {
-		switch strings.ToLower(strings.TrimSpace(v)) {
-		case "1", "true", "yes", "on":
-			return true
-		case "0", "false", "no", "off":
-			return false
-		default:
-			return fallback
-		}
-	}
-	if v, ok := os.LookupEnv(oldKey); ok {
-		slog.Warn("deprecated env var, use "+newKey+" instead", "var", oldKey)
-		switch strings.ToLower(strings.TrimSpace(v)) {
-		case "1", "true", "yes", "on":
-			return true
-		case "0", "false", "no", "off":
-			return false
-		default:
-			return fallback
-		}
-	}
-	return fallback
-}
-
-func envMigrateIsSet(newKey, oldKey string) bool {
-	if os.Getenv(newKey) != "" {
-		return true
-	}
-	return os.Getenv(oldKey) != ""
 }
 
 // homeDir returns the user's home directory, checking $HOME first for container compatibility
@@ -383,43 +340,69 @@ func (c *RuntimeConfig) ListenAddr() string {
 	return c.Bind + ":" + c.Port
 }
 
+func modeToHeadless(mode string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "":
+		return fallback
+	case "headless":
+		return true
+	case "headed":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func finalizeProfileConfig(cfg *RuntimeConfig) {
+	if cfg.DefaultProfile == "" {
+		cfg.DefaultProfile = "default"
+	}
+	if cfg.ProfilesBaseDir == "" {
+		cfg.ProfilesBaseDir = filepath.Join(cfg.StateDir, "profiles")
+	}
+	if cfg.ProfileDir == "" {
+		cfg.ProfileDir = filepath.Join(cfg.ProfilesBaseDir, cfg.DefaultProfile)
+	}
+}
+
 // Load returns the RuntimeConfig with precedence: env vars > config file > defaults.
 func Load() *RuntimeConfig {
 	cfg := &RuntimeConfig{
-		// Server defaults + env vars
-		Bind:              envOrMigrate("PINCHTAB_BIND", "BRIDGE_BIND", "127.0.0.1"),
-		Port:              envOrMigrate("PINCHTAB_PORT", "BRIDGE_PORT", "9867"),
-		InstancePortStart: envIntOrMigrate("PINCHTAB_INSTANCE_PORT_START", "INSTANCE_PORT_START", 9868),
-		InstancePortEnd:   envIntOrMigrate("PINCHTAB_INSTANCE_PORT_END", "INSTANCE_PORT_END", 9968),
-		CdpURL:            os.Getenv("CDP_URL"),
-		Token:             envMigrate("PINCHTAB_TOKEN", "BRIDGE_TOKEN"),
-		StateDir:          envOrMigrate("PINCHTAB_STATE_DIR", "BRIDGE_STATE_DIR", userConfigDir()),
+		// Server defaults + selected env vars
+		Bind:              envOr("PINCHTAB_BIND", "127.0.0.1"),
+		Port:              envOr("PINCHTAB_PORT", "9867"),
+		InstancePortStart: 9868,
+		InstancePortEnd:   9968,
+		Token:             os.Getenv("PINCHTAB_TOKEN"),
+		StateDir:          userConfigDir(),
 
-		// Security defaults + env vars
-		AllowEvaluate:   envBoolOrMigrate("PINCHTAB_ALLOW_EVALUATE", "BRIDGE_ALLOW_EVALUATE", false),
-		AllowMacro:      envBoolOrMigrate("PINCHTAB_ALLOW_MACRO", "BRIDGE_ALLOW_MACRO", false),
-		AllowScreencast: envBoolOrMigrate("PINCHTAB_ALLOW_SCREENCAST", "BRIDGE_ALLOW_SCREENCAST", false),
-		AllowDownload:   envBoolOrMigrate("PINCHTAB_ALLOW_DOWNLOAD", "BRIDGE_ALLOW_DOWNLOAD", false),
-		AllowUpload:     envBoolOrMigrate("PINCHTAB_ALLOW_UPLOAD", "BRIDGE_ALLOW_UPLOAD", false),
+		// Security defaults
+		AllowEvaluate:   false,
+		AllowMacro:      false,
+		AllowScreencast: false,
+		AllowDownload:   false,
+		AllowUpload:     false,
 
-		// Chrome defaults + env vars
-		Headless:          envBoolOrMigrate("PINCHTAB_HEADLESS", "BRIDGE_HEADLESS", true),
-		NoRestore:         envBoolOrMigrate("PINCHTAB_NO_RESTORE", "BRIDGE_NO_RESTORE", false),
-		ProfileDir:        envOrMigrate("PINCHTAB_PROFILE_DIR", "BRIDGE_PROFILE", filepath.Join(userConfigDir(), "chrome-profile")),
-		ChromeVersion:     envOrMigrate("PINCHTAB_CHROME_VERSION", "BRIDGE_CHROME_VERSION", "144.0.7559.133"),
-		Timezone:          envMigrate("PINCHTAB_TIMEZONE", "BRIDGE_TIMEZONE"),
-		BlockImages:       envBoolOrMigrate("PINCHTAB_BLOCK_IMAGES", "BRIDGE_BLOCK_IMAGES", false),
-		BlockMedia:        envBoolOrMigrate("PINCHTAB_BLOCK_MEDIA", "BRIDGE_BLOCK_MEDIA", false),
-		BlockAds:          envBoolOrMigrate("PINCHTAB_BLOCK_ADS", "BRIDGE_BLOCK_ADS", false),
-		MaxTabs:           envIntOrMigrate("PINCHTAB_MAX_TABS", "BRIDGE_MAX_TABS", 20),
-		MaxParallelTabs:   envIntOr("PINCHTAB_MAX_PARALLEL_TABS", 0),
-		ChromeBinary:      envOr("CHROME_BIN", os.Getenv("CHROME_BINARY")),
-		ChromeExtraFlags:  os.Getenv("CHROME_FLAGS"),
-		ExtensionPaths:    splitCommaPaths(os.Getenv("CHROME_EXTENSION_PATHS")),
-		UserAgent:         envMigrate("PINCHTAB_USER_AGENT", "BRIDGE_USER_AGENT"),
-		NoAnimations:      envBoolOrMigrate("PINCHTAB_NO_ANIMATIONS", "BRIDGE_NO_ANIMATIONS", false),
-		StealthLevel:      envOrMigrate("PINCHTAB_STEALTH", "BRIDGE_STEALTH", "light"),
-		TabEvictionPolicy: envOr("PINCHTAB_TAB_EVICTION_POLICY", "reject"),
+		// Browser / instance defaults
+		Headless:          true,
+		NoRestore:         false,
+		ProfileDir:        "",
+		ProfilesBaseDir:   "",
+		DefaultProfile:    "default",
+		ChromeVersion:     "144.0.7559.133",
+		Timezone:          "",
+		BlockImages:       false,
+		BlockMedia:        false,
+		BlockAds:          false,
+		MaxTabs:           20,
+		MaxParallelTabs:   0,
+		ChromeBinary:      os.Getenv("CHROME_BIN"),
+		ChromeExtraFlags:  "",
+		ExtensionPaths:    nil,
+		UserAgent:         "",
+		NoAnimations:      false,
+		StealthLevel:      "light",
+		TabEvictionPolicy: "reject",
 
 		// Timeout defaults
 		ActionTimeout:   30 * time.Second,
@@ -427,13 +410,19 @@ func Load() *RuntimeConfig {
 		ShutdownTimeout: 10 * time.Second,
 		WaitNavDelay:    1 * time.Second,
 
-		// Orchestrator defaults + env vars
-		Strategy:         envOr("PINCHTAB_STRATEGY", "simple"),
-		AllocationPolicy: envOr("PINCHTAB_ALLOCATION_POLICY", "fcfs"),
+		// Orchestrator defaults
+		Strategy:         "simple",
+		AllocationPolicy: "fcfs",
+
+		// Attach defaults
+		AttachEnabled:      false,
+		AttachAllowHosts:   []string{"127.0.0.1", "localhost", "::1"},
+		AttachAllowSchemes: []string{"ws", "wss"},
 	}
+	finalizeProfileConfig(cfg)
 
 	// Load config file (supports both legacy flat and new nested format)
-	configPath := envOrMigrate("PINCHTAB_CONFIG", "BRIDGE_CONFIG", filepath.Join(userConfigDir(), "config.json"))
+	configPath := envOr("PINCHTAB_CONFIG", filepath.Join(userConfigDir(), "config.json"))
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -472,6 +461,7 @@ func Load() *RuntimeConfig {
 
 	// Apply file config (only if env var NOT set)
 	applyFileConfig(cfg, fc)
+	finalizeProfileConfig(cfg)
 
 	return cfg
 }
@@ -480,145 +470,169 @@ func Load() *RuntimeConfig {
 // Only applies values where the corresponding env var is NOT set.
 func applyFileConfig(cfg *RuntimeConfig, fc *FileConfig) {
 	// Server
-	if fc.Server.Port != "" && !envMigrateIsSet("PINCHTAB_PORT", "BRIDGE_PORT") {
+	if fc.Server.Port != "" && os.Getenv("PINCHTAB_PORT") == "" {
 		cfg.Port = fc.Server.Port
 	}
-	if fc.Server.Bind != "" && !envMigrateIsSet("PINCHTAB_BIND", "BRIDGE_BIND") {
+	if fc.Server.Bind != "" && os.Getenv("PINCHTAB_BIND") == "" {
 		cfg.Bind = fc.Server.Bind
 	}
-	if fc.Server.Token != "" && !envMigrateIsSet("PINCHTAB_TOKEN", "BRIDGE_TOKEN") {
+	if fc.Server.Token != "" && os.Getenv("PINCHTAB_TOKEN") == "" {
 		cfg.Token = fc.Server.Token
 	}
-	if fc.Server.StateDir != "" && !envMigrateIsSet("PINCHTAB_STATE_DIR", "BRIDGE_STATE_DIR") {
+	if fc.Server.StateDir != "" {
 		cfg.StateDir = fc.Server.StateDir
 	}
-	if fc.Server.CdpURL != "" && os.Getenv("CDP_URL") == "" {
-		cfg.CdpURL = fc.Server.CdpURL
-	}
-	if fc.Server.InstancePortStart != nil && !envMigrateIsSet("PINCHTAB_INSTANCE_PORT_START", "INSTANCE_PORT_START") {
-		cfg.InstancePortStart = *fc.Server.InstancePortStart
-	}
-	if fc.Server.InstancePortEnd != nil && !envMigrateIsSet("PINCHTAB_INSTANCE_PORT_END", "INSTANCE_PORT_END") {
-		cfg.InstancePortEnd = *fc.Server.InstancePortEnd
-	}
-
 	// Security
-	if fc.Security.AllowEvaluate != nil && !envMigrateIsSet("PINCHTAB_ALLOW_EVALUATE", "BRIDGE_ALLOW_EVALUATE") {
+	if fc.Security.AllowEvaluate != nil {
 		cfg.AllowEvaluate = *fc.Security.AllowEvaluate
 	}
-	if fc.Security.AllowMacro != nil && !envMigrateIsSet("PINCHTAB_ALLOW_MACRO", "BRIDGE_ALLOW_MACRO") {
+	if fc.Security.AllowMacro != nil {
 		cfg.AllowMacro = *fc.Security.AllowMacro
 	}
-	if fc.Security.AllowScreencast != nil && !envMigrateIsSet("PINCHTAB_ALLOW_SCREENCAST", "BRIDGE_ALLOW_SCREENCAST") {
+	if fc.Security.AllowScreencast != nil {
 		cfg.AllowScreencast = *fc.Security.AllowScreencast
 	}
-	if fc.Security.AllowDownload != nil && !envMigrateIsSet("PINCHTAB_ALLOW_DOWNLOAD", "BRIDGE_ALLOW_DOWNLOAD") {
+	if fc.Security.AllowDownload != nil {
 		cfg.AllowDownload = *fc.Security.AllowDownload
 	}
-	if fc.Security.AllowUpload != nil && !envMigrateIsSet("PINCHTAB_ALLOW_UPLOAD", "BRIDGE_ALLOW_UPLOAD") {
+	if fc.Security.AllowUpload != nil {
 		cfg.AllowUpload = *fc.Security.AllowUpload
 	}
 
-	// Chrome
-	if fc.Chrome.Headless != nil && !envMigrateIsSet("PINCHTAB_HEADLESS", "BRIDGE_HEADLESS") {
-		cfg.Headless = *fc.Chrome.Headless
+	// Browser
+	if fc.Browser.ChromeVersion != "" {
+		cfg.ChromeVersion = fc.Browser.ChromeVersion
 	}
-	if fc.Chrome.NoRestore != nil && !envMigrateIsSet("PINCHTAB_NO_RESTORE", "BRIDGE_NO_RESTORE") {
-		cfg.NoRestore = *fc.Chrome.NoRestore
+	if fc.Browser.ChromeBinary != "" && os.Getenv("CHROME_BIN") == "" {
+		cfg.ChromeBinary = fc.Browser.ChromeBinary
 	}
-	if fc.Chrome.ProfileDir != "" && !envMigrateIsSet("PINCHTAB_PROFILE_DIR", "BRIDGE_PROFILE") {
-		cfg.ProfileDir = fc.Chrome.ProfileDir
+	if fc.Browser.ChromeExtraFlags != "" {
+		cfg.ChromeExtraFlags = fc.Browser.ChromeExtraFlags
 	}
-	if fc.Chrome.ChromeVersion != "" && !envMigrateIsSet("PINCHTAB_CHROME_VERSION", "BRIDGE_CHROME_VERSION") {
-		cfg.ChromeVersion = fc.Chrome.ChromeVersion
-	}
-	if fc.Chrome.Timezone != "" && !envMigrateIsSet("PINCHTAB_TIMEZONE", "BRIDGE_TIMEZONE") {
-		cfg.Timezone = fc.Chrome.Timezone
-	}
-	if fc.Chrome.BlockImages != nil && !envMigrateIsSet("PINCHTAB_BLOCK_IMAGES", "BRIDGE_BLOCK_IMAGES") {
-		cfg.BlockImages = *fc.Chrome.BlockImages
-	}
-	if fc.Chrome.BlockMedia != nil && !envMigrateIsSet("PINCHTAB_BLOCK_MEDIA", "BRIDGE_BLOCK_MEDIA") {
-		cfg.BlockMedia = *fc.Chrome.BlockMedia
-	}
-	if fc.Chrome.BlockAds != nil && !envMigrateIsSet("PINCHTAB_BLOCK_ADS", "BRIDGE_BLOCK_ADS") {
-		cfg.BlockAds = *fc.Chrome.BlockAds
-	}
-	if fc.Chrome.MaxTabs != nil && !envMigrateIsSet("PINCHTAB_MAX_TABS", "BRIDGE_MAX_TABS") {
-		cfg.MaxTabs = *fc.Chrome.MaxTabs
-	}
-	if fc.Chrome.MaxParallelTabs != nil && os.Getenv("PINCHTAB_MAX_PARALLEL_TABS") == "" {
-		cfg.MaxParallelTabs = *fc.Chrome.MaxParallelTabs
-	}
-	if fc.Chrome.ChromeBinary != "" && os.Getenv("CHROME_BIN") == "" && os.Getenv("CHROME_BINARY") == "" {
-		cfg.ChromeBinary = fc.Chrome.ChromeBinary
-	}
-	if fc.Chrome.ChromeExtraFlags != "" && os.Getenv("CHROME_FLAGS") == "" {
-		cfg.ChromeExtraFlags = fc.Chrome.ChromeExtraFlags
-	}
-	if len(fc.Chrome.ExtensionPaths) > 0 && os.Getenv("CHROME_EXTENSION_PATHS") == "" {
-		cfg.ExtensionPaths = fc.Chrome.ExtensionPaths
-	}
-	if fc.Chrome.UserAgent != "" && !envMigrateIsSet("PINCHTAB_USER_AGENT", "BRIDGE_USER_AGENT") {
-		cfg.UserAgent = fc.Chrome.UserAgent
-	}
-	if fc.Chrome.NoAnimations != nil && !envMigrateIsSet("PINCHTAB_NO_ANIMATIONS", "BRIDGE_NO_ANIMATIONS") {
-		cfg.NoAnimations = *fc.Chrome.NoAnimations
-	}
-	if fc.Chrome.StealthLevel != "" && !envMigrateIsSet("PINCHTAB_STEALTH", "BRIDGE_STEALTH") {
-		cfg.StealthLevel = fc.Chrome.StealthLevel
-	}
-	if fc.Chrome.TabEvictionPolicy != "" && os.Getenv("PINCHTAB_TAB_EVICTION_POLICY") == "" {
-		cfg.TabEvictionPolicy = fc.Chrome.TabEvictionPolicy
+	if len(fc.Browser.ExtensionPaths) > 0 {
+		cfg.ExtensionPaths = fc.Browser.ExtensionPaths
 	}
 
-	// Orchestrator
-	if fc.Orchestrator.Strategy != "" && os.Getenv("PINCHTAB_STRATEGY") == "" {
-		cfg.Strategy = fc.Orchestrator.Strategy
+	// Instance defaults
+	if fc.InstanceDefaults.Mode != "" {
+		cfg.Headless = modeToHeadless(fc.InstanceDefaults.Mode, cfg.Headless)
 	}
-	if fc.Orchestrator.AllocationPolicy != "" && os.Getenv("PINCHTAB_ALLOCATION_POLICY") == "" {
-		cfg.AllocationPolicy = fc.Orchestrator.AllocationPolicy
+	if fc.InstanceDefaults.NoRestore != nil {
+		cfg.NoRestore = *fc.InstanceDefaults.NoRestore
+	}
+	if fc.InstanceDefaults.Timezone != "" {
+		cfg.Timezone = fc.InstanceDefaults.Timezone
+	}
+	if fc.InstanceDefaults.BlockImages != nil {
+		cfg.BlockImages = *fc.InstanceDefaults.BlockImages
+	}
+	if fc.InstanceDefaults.BlockMedia != nil {
+		cfg.BlockMedia = *fc.InstanceDefaults.BlockMedia
+	}
+	if fc.InstanceDefaults.BlockAds != nil {
+		cfg.BlockAds = *fc.InstanceDefaults.BlockAds
+	}
+	if fc.InstanceDefaults.MaxTabs != nil {
+		cfg.MaxTabs = *fc.InstanceDefaults.MaxTabs
+	}
+	if fc.InstanceDefaults.MaxParallelTabs != nil {
+		cfg.MaxParallelTabs = *fc.InstanceDefaults.MaxParallelTabs
+	}
+	if fc.InstanceDefaults.UserAgent != "" {
+		cfg.UserAgent = fc.InstanceDefaults.UserAgent
+	}
+	if fc.InstanceDefaults.NoAnimations != nil {
+		cfg.NoAnimations = *fc.InstanceDefaults.NoAnimations
+	}
+	if fc.InstanceDefaults.StealthLevel != "" {
+		cfg.StealthLevel = fc.InstanceDefaults.StealthLevel
+	}
+	if fc.InstanceDefaults.TabEvictionPolicy != "" {
+		cfg.TabEvictionPolicy = fc.InstanceDefaults.TabEvictionPolicy
+	}
+
+	// Profiles
+	if fc.Profiles.BaseDir != "" {
+		cfg.ProfilesBaseDir = fc.Profiles.BaseDir
+	}
+	if fc.Profiles.DefaultProfile != "" {
+		cfg.DefaultProfile = fc.Profiles.DefaultProfile
+	}
+	cfg.ProfileDir = ""
+
+	// Multi-instance
+	if fc.MultiInstance.Strategy != "" {
+		cfg.Strategy = fc.MultiInstance.Strategy
+	}
+	if fc.MultiInstance.AllocationPolicy != "" {
+		cfg.AllocationPolicy = fc.MultiInstance.AllocationPolicy
+	}
+	if fc.MultiInstance.InstancePortStart != nil {
+		cfg.InstancePortStart = *fc.MultiInstance.InstancePortStart
+	}
+	if fc.MultiInstance.InstancePortEnd != nil {
+		cfg.InstancePortEnd = *fc.MultiInstance.InstancePortEnd
+	}
+
+	// Attach
+	if fc.Attach.Enabled != nil {
+		cfg.AttachEnabled = *fc.Attach.Enabled
+	}
+	if len(fc.Attach.AllowHosts) > 0 {
+		cfg.AttachAllowHosts = append([]string(nil), fc.Attach.AllowHosts...)
+	}
+	if len(fc.Attach.AllowSchemes) > 0 {
+		cfg.AttachAllowSchemes = append([]string(nil), fc.Attach.AllowSchemes...)
 	}
 
 	// Timeouts
-	if fc.Timeouts.ActionSec > 0 && !envMigrateIsSet("PINCHTAB_TIMEOUT", "BRIDGE_TIMEOUT") {
+	if fc.Timeouts.ActionSec > 0 {
 		cfg.ActionTimeout = time.Duration(fc.Timeouts.ActionSec) * time.Second
 	}
-	if fc.Timeouts.NavigateSec > 0 && !envMigrateIsSet("PINCHTAB_NAV_TIMEOUT", "BRIDGE_NAV_TIMEOUT") {
+	if fc.Timeouts.NavigateSec > 0 {
 		cfg.NavigateTimeout = time.Duration(fc.Timeouts.NavigateSec) * time.Second
 	}
-	if fc.Timeouts.ShutdownSec > 0 && os.Getenv("PINCHTAB_SHUTDOWN_TIMEOUT") == "" {
+	if fc.Timeouts.ShutdownSec > 0 {
 		cfg.ShutdownTimeout = time.Duration(fc.Timeouts.ShutdownSec) * time.Second
 	}
-	if fc.Timeouts.WaitNavMs > 0 && os.Getenv("PINCHTAB_WAIT_NAV_DELAY") == "" {
+	if fc.Timeouts.WaitNavMs > 0 {
 		cfg.WaitNavDelay = time.Duration(fc.Timeouts.WaitNavMs) * time.Millisecond
 	}
 }
 
 // DefaultFileConfig returns a FileConfig with sensible defaults (nested format).
 func DefaultFileConfig() FileConfig {
-	h := true
 	start := 9868
 	end := 9968
 	maxTabs := 20
 	return FileConfig{
 		Server: ServerConfig{
-			Port:              "9867",
-			Bind:              "127.0.0.1",
-			StateDir:          userConfigDir(),
-			InstancePortStart: &start,
-			InstancePortEnd:   &end,
+			Port:     "9867",
+			Bind:     "127.0.0.1",
+			StateDir: userConfigDir(),
 		},
-		Chrome: ChromeConfig{
-			Headless:          &h,
-			ProfileDir:        filepath.Join(userConfigDir(), "chrome-profile"),
+		Browser: BrowserConfig{
+			ChromeVersion: "144.0.7559.133",
+		},
+		InstanceDefaults: InstanceDefaultsConfig{
+			Mode:              "headless",
 			MaxTabs:           &maxTabs,
 			StealthLevel:      "light",
 			TabEvictionPolicy: "reject",
 		},
-		Orchestrator: OrchestratorConfig{
-			Strategy:         "simple",
-			AllocationPolicy: "fcfs",
+		Profiles: ProfilesConfig{
+			BaseDir:        filepath.Join(userConfigDir(), "profiles"),
+			DefaultProfile: "default",
+		},
+		MultiInstance: MultiInstanceConfig{
+			Strategy:          "simple",
+			AllocationPolicy:  "fcfs",
+			InstancePortStart: &start,
+			InstancePortEnd:   &end,
+		},
+		Attach: AttachConfig{
+			AllowHosts:   []string{"127.0.0.1", "localhost", "::1"},
+			AllowSchemes: []string{"ws", "wss"},
 		},
 		Timeouts: TimeoutsConfig{
 			ActionSec:   30,
@@ -627,6 +641,95 @@ func DefaultFileConfig() FileConfig {
 			WaitNavMs:   1000,
 		},
 	}
+}
+
+// FileConfigFromRuntime converts the effective runtime configuration back into a
+// nested file configuration shape. This is primarily used when orchestrator-launched
+// child instances need a generated config file.
+func FileConfigFromRuntime(cfg *RuntimeConfig) FileConfig {
+	if cfg == nil {
+		return DefaultFileConfig()
+	}
+
+	noRestore := cfg.NoRestore
+	blockImages := cfg.BlockImages
+	blockMedia := cfg.BlockMedia
+	blockAds := cfg.BlockAds
+	maxTabs := cfg.MaxTabs
+	maxParallelTabs := cfg.MaxParallelTabs
+	noAnimations := cfg.NoAnimations
+	allowEvaluate := cfg.AllowEvaluate
+	allowMacro := cfg.AllowMacro
+	allowScreencast := cfg.AllowScreencast
+	allowDownload := cfg.AllowDownload
+	allowUpload := cfg.AllowUpload
+	attachEnabled := cfg.AttachEnabled
+	start := cfg.InstancePortStart
+	end := cfg.InstancePortEnd
+
+	mode := "headless"
+	if !cfg.Headless {
+		mode = "headed"
+	}
+
+	fc := FileConfig{
+		Server: ServerConfig{
+			Port:     cfg.Port,
+			Bind:     cfg.Bind,
+			Token:    cfg.Token,
+			StateDir: cfg.StateDir,
+		},
+		Browser: BrowserConfig{
+			ChromeVersion:    cfg.ChromeVersion,
+			ChromeBinary:     cfg.ChromeBinary,
+			ChromeExtraFlags: cfg.ChromeExtraFlags,
+			ExtensionPaths:   append([]string(nil), cfg.ExtensionPaths...),
+		},
+		InstanceDefaults: InstanceDefaultsConfig{
+			Mode:              mode,
+			NoRestore:         &noRestore,
+			Timezone:          cfg.Timezone,
+			BlockImages:       &blockImages,
+			BlockMedia:        &blockMedia,
+			BlockAds:          &blockAds,
+			MaxTabs:           &maxTabs,
+			MaxParallelTabs:   &maxParallelTabs,
+			UserAgent:         cfg.UserAgent,
+			NoAnimations:      &noAnimations,
+			StealthLevel:      cfg.StealthLevel,
+			TabEvictionPolicy: cfg.TabEvictionPolicy,
+		},
+		Security: SecurityConfig{
+			AllowEvaluate:   &allowEvaluate,
+			AllowMacro:      &allowMacro,
+			AllowScreencast: &allowScreencast,
+			AllowDownload:   &allowDownload,
+			AllowUpload:     &allowUpload,
+		},
+		Profiles: ProfilesConfig{
+			BaseDir:        cfg.ProfilesBaseDir,
+			DefaultProfile: cfg.DefaultProfile,
+		},
+		MultiInstance: MultiInstanceConfig{
+			Strategy:          cfg.Strategy,
+			AllocationPolicy:  cfg.AllocationPolicy,
+			InstancePortStart: &start,
+			InstancePortEnd:   &end,
+		},
+		Attach: AttachConfig{
+			Enabled:      &attachEnabled,
+			AllowHosts:   append([]string(nil), cfg.AttachAllowHosts...),
+			AllowSchemes: append([]string(nil), cfg.AttachAllowSchemes...),
+		},
+		Timeouts: TimeoutsConfig{
+			ActionSec:   int(cfg.ActionTimeout / time.Second),
+			NavigateSec: int(cfg.NavigateTimeout / time.Second),
+			ShutdownSec: int(cfg.ShutdownTimeout / time.Second),
+			WaitNavMs:   int(cfg.WaitNavDelay / time.Millisecond),
+		},
+	}
+
+	return fc
 }
 
 // HandleConfigCommand handles `pinchtab config <subcommand>`.
@@ -701,9 +804,12 @@ func handleConfigInit() {
     "port": "9867",
     "token": "your-secret-token"
   },
-  "chrome": {
-    "headless": true,
+  "instanceDefaults": {
+    "mode": "headless",
     "maxTabs": 20
+  },
+  "profiles": {
+    "defaultProfile": "default"
   }
 }`)
 }
@@ -716,7 +822,6 @@ func handleConfigShow(cfg *RuntimeConfig) {
 	fmt.Printf("  Bind:           %s\n", cfg.Bind)
 	fmt.Printf("  Token:          %s\n", MaskToken(cfg.Token))
 	fmt.Printf("  State Dir:      %s\n", cfg.StateDir)
-	fmt.Printf("  CDP URL:        %s\n", valueOrNone(cfg.CdpURL))
 	fmt.Printf("  Instance Ports: %d-%d\n", cfg.InstancePortStart, cfg.InstancePortEnd)
 	fmt.Println()
 	fmt.Println("Security:")
@@ -726,18 +831,25 @@ func handleConfigShow(cfg *RuntimeConfig) {
 	fmt.Printf("  Download:       %v\n", cfg.AllowDownload)
 	fmt.Printf("  Upload:         %v\n", cfg.AllowUpload)
 	fmt.Println()
-	fmt.Println("Chrome:")
+	fmt.Println("Browser / Instance Defaults:")
 	fmt.Printf("  Headless:       %v\n", cfg.Headless)
 	fmt.Printf("  No Restore:     %v\n", cfg.NoRestore)
 	fmt.Printf("  Profile Dir:    %s\n", cfg.ProfileDir)
+	fmt.Printf("  Profiles Dir:   %s\n", cfg.ProfilesBaseDir)
+	fmt.Printf("  Default Profile: %s\n", cfg.DefaultProfile)
 	fmt.Printf("  Max Tabs:       %d\n", cfg.MaxTabs)
 	fmt.Printf("  Stealth:        %s\n", cfg.StealthLevel)
 	fmt.Printf("  Tab Eviction:   %s\n", cfg.TabEvictionPolicy)
 	fmt.Printf("  Extensions:     %v\n", cfg.ExtensionPaths)
 	fmt.Println()
-	fmt.Println("Orchestrator:")
+	fmt.Println("Multi-Instance:")
 	fmt.Printf("  Strategy:       %s\n", cfg.Strategy)
 	fmt.Printf("  Allocation:     %s\n", cfg.AllocationPolicy)
+	fmt.Println()
+	fmt.Println("Attach:")
+	fmt.Printf("  Enabled:        %v\n", cfg.AttachEnabled)
+	fmt.Printf("  Allow Hosts:    %v\n", cfg.AttachAllowHosts)
+	fmt.Printf("  Allow Schemes:  %v\n", cfg.AttachAllowSchemes)
 	fmt.Println()
 	fmt.Println("Timeouts:")
 	fmt.Printf("  Action:         %v\n", cfg.ActionTimeout)
@@ -746,7 +858,7 @@ func handleConfigShow(cfg *RuntimeConfig) {
 }
 
 func handleConfigPath() {
-	configPath := envOrMigrate("PINCHTAB_CONFIG", "BRIDGE_CONFIG", filepath.Join(userConfigDir(), "config.json"))
+	configPath := envOr("PINCHTAB_CONFIG", filepath.Join(userConfigDir(), "config.json"))
 	fmt.Println(configPath)
 }
 
@@ -756,10 +868,10 @@ func handleConfigSet() {
 		fmt.Println()
 		fmt.Println("Examples:")
 		fmt.Println("  pinchtab config set server.port 8080")
-		fmt.Println("  pinchtab config set chrome.headless false")
-		fmt.Println("  pinchtab config set orchestrator.strategy explicit")
+		fmt.Println("  pinchtab config set instanceDefaults.mode headed")
+		fmt.Println("  pinchtab config set multiInstance.strategy explicit")
 		fmt.Println()
-		fmt.Println("Sections: server, chrome, security, orchestrator, timeouts")
+		fmt.Println("Sections: server, browser, instanceDefaults, security, profiles, multiInstance, attach, timeouts")
 		os.Exit(1)
 	}
 
@@ -806,7 +918,7 @@ func handleConfigPatch() {
 		fmt.Println()
 		fmt.Println("Examples:")
 		fmt.Println(`  pinchtab config patch '{"server": {"port": "8080"}}'`)
-		fmt.Println(`  pinchtab config patch '{"chrome": {"headless": false, "maxTabs": 50}}'`)
+		fmt.Println(`  pinchtab config patch '{"instanceDefaults": {"mode": "headed", "maxTabs": 50}}'`)
 		os.Exit(1)
 	}
 
@@ -847,7 +959,7 @@ func handleConfigPatch() {
 }
 
 func handleConfigValidate() {
-	configPath := envOrMigrate("PINCHTAB_CONFIG", "BRIDGE_CONFIG", filepath.Join(userConfigDir(), "config.json"))
+	configPath := envOr("PINCHTAB_CONFIG", filepath.Join(userConfigDir(), "config.json"))
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -885,13 +997,6 @@ func handleConfigValidate() {
 		fmt.Printf("  - %v\n", e)
 	}
 	os.Exit(1)
-}
-
-func valueOrNone(s string) string {
-	if s == "" {
-		return "(none)"
-	}
-	return s
 }
 
 // MaskToken masks a token for display (shows first/last 4 chars).

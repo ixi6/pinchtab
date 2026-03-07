@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// SetConfigValue sets a dotted path in FileConfig (e.g., "server.port", "chrome.headless").
+// SetConfigValue sets a dotted path in FileConfig (e.g., "server.port", "instanceDefaults.mode").
 // Returns the updated FileConfig and any error.
 func SetConfigValue(fc *FileConfig, path string, value string) error {
 	parts := strings.SplitN(path, ".", 2)
@@ -22,16 +22,22 @@ func SetConfigValue(fc *FileConfig, path string, value string) error {
 	switch section {
 	case "server":
 		return setServerField(&fc.Server, field, value)
-	case "chrome":
-		return setChromeField(&fc.Chrome, field, value)
+	case "browser":
+		return setBrowserField(&fc.Browser, field, value)
+	case "instanceDefaults":
+		return setInstanceDefaultsField(&fc.InstanceDefaults, field, value)
 	case "security":
 		return setSecurityField(&fc.Security, field, value)
-	case "orchestrator":
-		return setOrchestratorField(&fc.Orchestrator, field, value)
+	case "profiles":
+		return setProfilesField(&fc.Profiles, field, value)
+	case "multiInstance":
+		return setMultiInstanceField(&fc.MultiInstance, field, value)
+	case "attach":
+		return setAttachField(&fc.Attach, field, value)
 	case "timeouts":
 		return setTimeoutsField(&fc.Timeouts, field, value)
 	default:
-		return fmt.Errorf("unknown section %q (valid: server, chrome, security, orchestrator, timeouts)", section)
+		return fmt.Errorf("unknown section %q (valid: server, browser, instanceDefaults, security, profiles, multiInstance, attach, timeouts)", section)
 	}
 }
 
@@ -45,86 +51,74 @@ func setServerField(s *ServerConfig, field, value string) error {
 		s.Token = value
 	case "stateDir":
 		s.StateDir = value
-	case "cdpUrl":
-		s.CdpURL = value
-	case "instancePortStart":
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("server.instancePortStart must be a number: %w", err)
-		}
-		s.InstancePortStart = &n
-	case "instancePortEnd":
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("server.instancePortEnd must be a number: %w", err)
-		}
-		s.InstancePortEnd = &n
 	default:
 		return fmt.Errorf("unknown field server.%s", field)
 	}
 	return nil
 }
 
-func setChromeField(c *ChromeConfig, field, value string) error {
+func setBrowserField(b *BrowserConfig, field, value string) error {
 	switch field {
-	case "headless":
-		b, err := parseBool(value)
-		if err != nil {
-			return fmt.Errorf("chrome.headless: %w", err)
-		}
-		c.Headless = &b
+	case "version":
+		b.ChromeVersion = value
+	case "binary":
+		b.ChromeBinary = value
+	case "extraFlags":
+		b.ChromeExtraFlags = value
+	default:
+		return fmt.Errorf("unknown field browser.%s", field)
+	}
+	return nil
+}
+
+func setInstanceDefaultsField(c *InstanceDefaultsConfig, field, value string) error {
+	switch field {
+	case "mode":
+		c.Mode = value
 	case "noRestore":
 		b, err := parseBool(value)
 		if err != nil {
-			return fmt.Errorf("chrome.noRestore: %w", err)
+			return fmt.Errorf("instanceDefaults.noRestore: %w", err)
 		}
 		c.NoRestore = &b
-	case "profileDir":
-		c.ProfileDir = value
-	case "chromeVersion":
-		c.ChromeVersion = value
 	case "timezone":
 		c.Timezone = value
 	case "blockImages":
 		b, err := parseBool(value)
 		if err != nil {
-			return fmt.Errorf("chrome.blockImages: %w", err)
+			return fmt.Errorf("instanceDefaults.blockImages: %w", err)
 		}
 		c.BlockImages = &b
 	case "blockMedia":
 		b, err := parseBool(value)
 		if err != nil {
-			return fmt.Errorf("chrome.blockMedia: %w", err)
+			return fmt.Errorf("instanceDefaults.blockMedia: %w", err)
 		}
 		c.BlockMedia = &b
 	case "blockAds":
 		b, err := parseBool(value)
 		if err != nil {
-			return fmt.Errorf("chrome.blockAds: %w", err)
+			return fmt.Errorf("instanceDefaults.blockAds: %w", err)
 		}
 		c.BlockAds = &b
 	case "maxTabs":
 		n, err := strconv.Atoi(value)
 		if err != nil {
-			return fmt.Errorf("chrome.maxTabs must be a number: %w", err)
+			return fmt.Errorf("instanceDefaults.maxTabs must be a number: %w", err)
 		}
 		c.MaxTabs = &n
 	case "maxParallelTabs":
 		n, err := strconv.Atoi(value)
 		if err != nil {
-			return fmt.Errorf("chrome.maxParallelTabs must be a number: %w", err)
+			return fmt.Errorf("instanceDefaults.maxParallelTabs must be a number: %w", err)
 		}
 		c.MaxParallelTabs = &n
-	case "chromeBinary":
-		c.ChromeBinary = value
-	case "chromeExtraFlags":
-		c.ChromeExtraFlags = value
 	case "userAgent":
 		c.UserAgent = value
 	case "noAnimations":
 		b, err := parseBool(value)
 		if err != nil {
-			return fmt.Errorf("chrome.noAnimations: %w", err)
+			return fmt.Errorf("instanceDefaults.noAnimations: %w", err)
 		}
 		c.NoAnimations = &b
 	case "stealthLevel":
@@ -132,7 +126,7 @@ func setChromeField(c *ChromeConfig, field, value string) error {
 	case "tabEvictionPolicy":
 		c.TabEvictionPolicy = value
 	default:
-		return fmt.Errorf("unknown field chrome.%s", field)
+		return fmt.Errorf("unknown field instanceDefaults.%s", field)
 	}
 	return nil
 }
@@ -160,14 +154,38 @@ func setSecurityField(s *SecurityConfig, field, value string) error {
 	return nil
 }
 
-func setOrchestratorField(o *OrchestratorConfig, field, value string) error {
+func setProfilesField(p *ProfilesConfig, field, value string) error {
+	switch field {
+	case "baseDir":
+		p.BaseDir = value
+	case "defaultProfile":
+		p.DefaultProfile = value
+	default:
+		return fmt.Errorf("unknown field profiles.%s", field)
+	}
+	return nil
+}
+
+func setMultiInstanceField(o *MultiInstanceConfig, field, value string) error {
 	switch field {
 	case "strategy":
 		o.Strategy = value
 	case "allocationPolicy":
 		o.AllocationPolicy = value
+	case "instancePortStart":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("multiInstance.instancePortStart must be a number: %w", err)
+		}
+		o.InstancePortStart = &n
+	case "instancePortEnd":
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("multiInstance.instancePortEnd must be a number: %w", err)
+		}
+		o.InstancePortEnd = &n
 	default:
-		return fmt.Errorf("unknown field orchestrator.%s", field)
+		return fmt.Errorf("unknown field multiInstance.%s", field)
 	}
 	return nil
 }
@@ -193,6 +211,24 @@ func setTimeoutsField(t *TimeoutsConfig, field, value string) error {
 	return nil
 }
 
+func setAttachField(a *AttachConfig, field, value string) error {
+	switch field {
+	case "enabled":
+		b, err := parseBool(value)
+		if err != nil {
+			return fmt.Errorf("attach.enabled: %w", err)
+		}
+		a.Enabled = &b
+	case "allowHosts":
+		a.AllowHosts = parseCSVList(value)
+	case "allowSchemes":
+		a.AllowSchemes = parseCSVList(value)
+	default:
+		return fmt.Errorf("unknown field attach.%s", field)
+	}
+	return nil
+}
+
 func parseBool(s string) (bool, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "true", "1", "yes", "on":
@@ -202,6 +238,21 @@ func parseBool(s string) (bool, error) {
 	default:
 		return false, fmt.Errorf("invalid boolean %q (use true/false)", s)
 	}
+}
+
+func parseCSVList(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	raw := strings.Split(s, ",")
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 // PatchConfigJSON merges a JSON object into FileConfig.
@@ -268,7 +319,7 @@ func deepMerge(dst, src map[string]interface{}) map[string]interface{} {
 // LoadFileConfig loads a FileConfig from the default or specified path.
 // Returns the config and the path it was loaded from.
 func LoadFileConfig() (*FileConfig, string, error) {
-	configPath := envOrMigrate("PINCHTAB_CONFIG", "BRIDGE_CONFIG", filepath.Join(userConfigDir(), "config.json"))
+	configPath := envOr("PINCHTAB_CONFIG", filepath.Join(userConfigDir(), "config.json"))
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {

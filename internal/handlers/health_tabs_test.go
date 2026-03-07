@@ -54,7 +54,7 @@ func TestHandleHealth_BridgeListTargetsError(t *testing.T) {
 
 	h := &Handlers{
 		Bridge: mockBridge,
-		Config: &config.RuntimeConfig{CdpURL: "ws://localhost:9222"},
+		Config: &config.RuntimeConfig{},
 	}
 
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -91,7 +91,7 @@ func TestHandleHealth_Success(t *testing.T) {
 
 	h := &Handlers{
 		Bridge: mockBridge,
-		Config: &config.RuntimeConfig{CdpURL: "ws://localhost:9222"},
+		Config: &config.RuntimeConfig{},
 	}
 
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -228,7 +228,7 @@ func TestHandleHealth_EnsureChromeSuccess(t *testing.T) {
 
 	h := &Handlers{
 		Bridge: mockBridge,
-		Config: &config.RuntimeConfig{CdpURL: "ws://localhost:9222"},
+		Config: &config.RuntimeConfig{},
 	}
 
 	req := httptest.NewRequest("GET", "/health", nil)

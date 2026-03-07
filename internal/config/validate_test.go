@@ -12,12 +12,13 @@ func TestValidateFileConfig_Valid(t *testing.T) {
 			Port: "9867",
 			Bind: "127.0.0.1",
 		},
-		Chrome: ChromeConfig{
+		InstanceDefaults: InstanceDefaultsConfig{
+			Mode:              "headless",
 			MaxTabs:           &maxTabs,
 			StealthLevel:      "light",
 			TabEvictionPolicy: "reject",
 		},
-		Orchestrator: OrchestratorConfig{
+		MultiInstance: MultiInstanceConfig{
 			Strategy:         "simple",
 			AllocationPolicy: "fcfs",
 		},
@@ -76,7 +77,7 @@ func TestValidateFileConfig_InvalidStealthLevel(t *testing.T) {
 
 	for _, tt := range tests {
 		fc := &FileConfig{
-			Chrome: ChromeConfig{StealthLevel: tt.level},
+			InstanceDefaults: InstanceDefaultsConfig{StealthLevel: tt.level},
 		}
 		errs := ValidateFileConfig(fc)
 		hasErr := len(errs) > 0
@@ -101,7 +102,7 @@ func TestValidateFileConfig_InvalidEvictionPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		fc := &FileConfig{
-			Chrome: ChromeConfig{TabEvictionPolicy: tt.policy},
+			InstanceDefaults: InstanceDefaultsConfig{TabEvictionPolicy: tt.policy},
 		}
 		errs := ValidateFileConfig(fc)
 		hasErr := len(errs) > 0
@@ -126,7 +127,7 @@ func TestValidateFileConfig_InvalidStrategy(t *testing.T) {
 
 	for _, tt := range tests {
 		fc := &FileConfig{
-			Orchestrator: OrchestratorConfig{Strategy: tt.strategy},
+			MultiInstance: MultiInstanceConfig{Strategy: tt.strategy},
 		}
 		errs := ValidateFileConfig(fc)
 		hasErr := len(errs) > 0
@@ -151,12 +152,36 @@ func TestValidateFileConfig_InvalidAllocationPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		fc := &FileConfig{
-			Orchestrator: OrchestratorConfig{AllocationPolicy: tt.policy},
+			MultiInstance: MultiInstanceConfig{AllocationPolicy: tt.policy},
 		}
 		errs := ValidateFileConfig(fc)
 		hasErr := len(errs) > 0
 		if hasErr != tt.wantErr {
 			t.Errorf("allocationPolicy=%q: got error=%v, want error=%v", tt.policy, hasErr, tt.wantErr)
+		}
+	}
+}
+
+func TestValidateFileConfig_InvalidAttachScheme(t *testing.T) {
+	tests := []struct {
+		schemes []string
+		wantErr bool
+	}{
+		{[]string{"ws"}, false},
+		{[]string{"wss"}, false},
+		{[]string{"ws", "wss"}, false},
+		{[]string{"http"}, true},
+		{[]string{"ws", "https"}, true},
+	}
+
+	for _, tt := range tests {
+		fc := &FileConfig{
+			Attach: AttachConfig{AllowSchemes: tt.schemes},
+		}
+		errs := ValidateFileConfig(fc)
+		hasErr := len(errs) > 0
+		if hasErr != tt.wantErr {
+			t.Errorf("allowSchemes=%v: got error=%v, want error=%v", tt.schemes, hasErr, tt.wantErr)
 		}
 	}
 }
@@ -180,7 +205,7 @@ func TestValidateFileConfig_InvalidMaxTabs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fc := &FileConfig{
-				Chrome: ChromeConfig{MaxTabs: tt.maxTabs},
+				InstanceDefaults: InstanceDefaultsConfig{MaxTabs: tt.maxTabs},
 			}
 			errs := ValidateFileConfig(fc)
 			hasErr := len(errs) > 0
@@ -212,7 +237,8 @@ func TestValidateFileConfig_InstancePortRange(t *testing.T) {
 	end := 9800 // invalid: start > end
 
 	fc := &FileConfig{
-		Server: ServerConfig{
+		Server: ServerConfig{},
+		MultiInstance: MultiInstanceConfig{
 			InstancePortStart: &start,
 			InstancePortEnd:   &end,
 		},
@@ -233,12 +259,12 @@ func TestValidateFileConfig_MultipleErrors(t *testing.T) {
 		Server: ServerConfig{
 			Port: "99999", // invalid
 		},
-		Chrome: ChromeConfig{
+		InstanceDefaults: InstanceDefaultsConfig{
 			MaxTabs:           &zero,           // invalid
 			StealthLevel:      "superstealth",  // invalid
 			TabEvictionPolicy: "delete_oldest", // invalid
 		},
-		Orchestrator: OrchestratorConfig{
+		MultiInstance: MultiInstanceConfig{
 			Strategy:         "magical",  // invalid
 			AllocationPolicy: "balanced", // invalid
 		},
@@ -284,6 +310,12 @@ func TestValidEnumValues(t *testing.T) {
 	for _, policy := range ValidAllocationPolicies() {
 		if !isValidAllocationPolicy(policy) {
 			t.Errorf("ValidAllocationPolicies contains %q but isValidAllocationPolicy returns false", policy)
+		}
+	}
+
+	for _, scheme := range ValidAttachSchemes() {
+		if !isValidAttachScheme(scheme) {
+			t.Errorf("ValidAttachSchemes contains %q but isValidAttachScheme returns false", scheme)
 		}
 	}
 }
