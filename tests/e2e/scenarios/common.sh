@@ -478,14 +478,14 @@ assert_form_page() {
   fi
 }
 
-# table.html: Alice Johnson, bob@example.com, etc.
+# table.html: Alice Johnson, bob@example.com, Active/Inactive status
 assert_table_page() {
   local text="$1"
   local checks=0
   
   echo "$text" | grep -q "Alice Johnson" && ((checks++))
   echo "$text" | grep -q "bob@example.com" && ((checks++))
-  echo "$text" | grep -q "Engineer" && ((checks++))
+  echo "$text" | grep -q "Active" && ((checks++))
   
   if [ "$checks" -ge 3 ]; then
     echo -e "  ${GREEN}✓${NC} table.html: found expected table data"

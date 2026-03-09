@@ -39,15 +39,17 @@ end_test
 # ─────────────────────────────────────────────────────────────────
 start_test "pinchtab tab close"
 
-BEFORE=$(get_tab_count)
-
+# Create a new tab
 pt_post /navigate -d "{\"url\":\"${FIXTURES_URL}/buttons.html\"}"
 TAB_ID=$(get_tab_id)
+AFTER_CREATE=$(get_tab_count)
 
+# Close it
 pt_post "/tabs/${TAB_ID}/close" -d '{}'
 assert_ok "tab close"
 
+# Verify count decreased
 sleep 1
-assert_tab_closed "$BEFORE"
+assert_tab_closed "$AFTER_CREATE"
 
 end_test
