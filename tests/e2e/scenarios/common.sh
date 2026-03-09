@@ -220,6 +220,57 @@ pt_get() { pinchtab GET "$1"; echo "$RESULT"; }
 pt_post() { pinchtab POST "$1" -d "$2"; echo "$RESULT"; }
 
 # ================================================================
+# Tab helpers
+# ================================================================
+
+# Get current tab count
+get_tab_count() {
+  curl -s "${PINCHTAB_URL}/tabs" | jq '.tabs | length'
+}
+
+# Assert tab count equals expected
+assert_tab_count() {
+  local expected="$1"
+  local actual=$(get_tab_count)
+  
+  if [ "$actual" -eq "$expected" ]; then
+    echo -e "  ${GREEN}✓${NC} tab count = $actual"
+    ((ASSERTIONS_PASSED++)) || true
+  else
+    echo -e "  ${RED}✗${NC} tab count: expected $expected, got $actual"
+    ((ASSERTIONS_FAILED++)) || true
+  fi
+}
+
+# Assert tab count >= minimum
+assert_tab_count_gte() {
+  local min="$1"
+  local actual=$(get_tab_count)
+  
+  if [ "$actual" -ge "$min" ]; then
+    echo -e "  ${GREEN}✓${NC} tab count $actual >= $min"
+    ((ASSERTIONS_PASSED++)) || true
+  else
+    echo -e "  ${RED}✗${NC} tab count: expected >= $min, got $actual"
+    ((ASSERTIONS_FAILED++)) || true
+  fi
+}
+
+# Assert tab count decreased after an action
+assert_tab_closed() {
+  local before="$1"
+  local actual=$(get_tab_count)
+  
+  if [ "$actual" -lt "$before" ]; then
+    echo -e "  ${GREEN}✓${NC} tab closed (before: $before, after: $actual)"
+    ((ASSERTIONS_PASSED++)) || true
+  else
+    echo -e "  ${RED}✗${NC} tab not closed (before: $before, after: $actual)"
+    ((ASSERTIONS_FAILED++)) || true
+  fi
+}
+
+# ================================================================
 # Page-specific assertions (we control the fixtures!)
 # ================================================================
 

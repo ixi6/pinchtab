@@ -40,8 +40,7 @@ end_test
 # ─────────────────────────────────────────────────────────────────
 start_test "pinchtab tab close"
 
-pt_get /tabs
-BEFORE=$(echo "$RESULT" | jq '.tabs | length')
+BEFORE=$(get_tab_count)
 
 # Create and close a tab
 pt_post /navigate -d "{\"url\":\"${FIXTURES_URL}/buttons.html\"}"
@@ -49,17 +48,7 @@ TAB_ID=$(echo "$RESULT" | jq -r '.tabId')
 
 assert_status 200 "${PINCHTAB_URL}/tabs/${TAB_ID}/close" "POST"
 
-# Verify tab count
 sleep 1
-pt_get /tabs
-AFTER=$(echo "$RESULT" | jq '.tabs | length')
-
-if [ "$AFTER" -le "$BEFORE" ]; then
-  echo -e "  ${GREEN}✓${NC} Tab closed (before: $BEFORE, after: $AFTER)"
-  ((ASSERTIONS_PASSED++)) || true
-else
-  echo -e "  ${RED}✗${NC} Tab not closed (before: $BEFORE, after: $AFTER)"
-  ((ASSERTIONS_FAILED++)) || true
-fi
+assert_tab_closed "$BEFORE"
 
 end_test

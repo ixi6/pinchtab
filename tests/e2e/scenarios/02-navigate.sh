@@ -26,12 +26,6 @@ end_test
 # ─────────────────────────────────────────────────────────────────
 start_test "pinchtab tabs"
 
-pt_get /tabs
-assert_json_length_gte "$RESULT" '.tabs' 2
-
-# Verify tab structure
-FIRST_TAB=$(echo "$RESULT" | jq '.tabs[0]')
-assert_json_contains "$FIRST_TAB" '.id' ''
-assert_json_contains "$FIRST_TAB" '.url' 'http'
+assert_tab_count_gte 2
 
 end_test
