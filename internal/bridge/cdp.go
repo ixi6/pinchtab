@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sync/atomic"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
@@ -36,6 +39,92 @@ func NavigatePage(ctx context.Context, url string) error {
 		case <-ticker.C:
 			var state string
 			err = chromedp.Run(ctx,
+				chromedp.Evaluate("document.readyState", &state),
+			)
+			if err == nil && (state == "interactive" || state == "complete") {
+				return nil
+			}
+		}
+	}
+}
+
+// ErrTooManyRedirects is returned when a navigation exceeds the configured redirect limit.
+var ErrTooManyRedirects = fmt.Errorf("too many redirects")
+
+// NavigatePageWithRedirectLimit navigates to a URL and enforces a maximum number of
+// HTTP redirects using the Fetch domain to intercept requests. If maxRedirects < 0,
+// redirects are unlimited. If maxRedirects == 0, any redirect is blocked.
+// If maxRedirects > 0, up to that many hops are allowed.
+func NavigatePageWithRedirectLimit(ctx context.Context, url string, maxRedirects int) error {
+	// Unlimited: just navigate normally.
+	if maxRedirects < 0 {
+		return NavigatePage(ctx, url)
+	}
+
+	// Use Fetch domain to intercept and count redirects.
+	// This pauses each request so we can decide to continue or fail it.
+	if err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		return fetch.Enable().Do(ctx)
+	})); err != nil {
+		return fmt.Errorf("fetch enable: %w", err)
+	}
+
+	var redirectCount atomic.Int32
+	var blocked atomic.Bool
+
+	chromedp.ListenTarget(ctx, func(ev interface{}) {
+		e, ok := ev.(*fetch.EventRequestPaused)
+		if !ok {
+			return
+		}
+		// Handle in goroutine to avoid deadlocking the event dispatcher.
+		go func() {
+			reqID := e.RequestID
+			// A non-empty RedirectedRequestID means this request is a redirect.
+			if e.RedirectedRequestID != "" {
+				count := int(redirectCount.Add(1))
+				if count > maxRedirects {
+					blocked.Store(true)
+					_ = fetch.FailRequest(reqID, network.ErrorReasonBlockedByClient).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
+					return
+				}
+			}
+			// Allow the request to proceed.
+			_ = fetch.ContinueRequest(reqID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
+		}()
+	})
+
+	// Start navigation.
+	err := chromedp.Run(ctx,
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			_, _, _, _, err := page.Navigate(url).Do(ctx)
+			return err
+		}),
+	)
+
+	// Disable fetch interception regardless of outcome.
+	_ = chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		return fetch.Disable().Do(ctx)
+	}))
+
+	if blocked.Load() {
+		return fmt.Errorf("%w: got %d, max %d", ErrTooManyRedirects, redirectCount.Load(), maxRedirects)
+	}
+	if err != nil {
+		return err
+	}
+
+	// Wait for page to finish loading.
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			var state string
+			err := chromedp.Run(ctx,
 				chromedp.Evaluate("document.readyState", &state),
 			)
 			if err == nil && (state == "interactive" || state == "complete") {

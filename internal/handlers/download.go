@@ -12,8 +12,13 @@ import (
 	"strings"
 	"time"
 
+	"sync/atomic"
+
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
+	"github.com/pinchtab/pinchtab/internal/bridge"
 	"github.com/pinchtab/pinchtab/internal/web"
 )
 
@@ -90,10 +95,42 @@ func (h *Handlers) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	var requestID network.RequestID
 	var responseMIME string
 	var responseStatus int
+	maxRedirects := h.Config.MaxRedirects
+	var redirectCount atomic.Int32
+	var redirectBlocked atomic.Bool
 	done := make(chan struct{}, 1)
+
+	// If redirect limiting is enabled, use Fetch domain to intercept.
+	if maxRedirects >= 0 {
+		if err := chromedp.Run(tCtx, chromedp.ActionFunc(func(ctx context.Context) error {
+			return fetch.Enable().Do(ctx)
+		})); err != nil {
+			web.Error(w, 500, fmt.Errorf("fetch enable: %w", err))
+			return
+		}
+		defer func() {
+			_ = chromedp.Run(tCtx, chromedp.ActionFunc(func(ctx context.Context) error {
+				return fetch.Disable().Do(ctx)
+			}))
+		}()
+	}
 
 	chromedp.ListenTarget(tCtx, func(ev interface{}) {
 		switch e := ev.(type) {
+		case *fetch.EventRequestPaused:
+			// Handle in goroutine to avoid deadlocking the event dispatcher.
+			go func() {
+				reqID := e.RequestID
+				if e.RedirectedRequestID != "" && maxRedirects >= 0 {
+					count := int(redirectCount.Add(1))
+					if count > maxRedirects {
+						redirectBlocked.Store(true)
+						_ = fetch.FailRequest(reqID, network.ErrorReasonBlockedByClient).Do(cdp.WithExecutor(tCtx, chromedp.FromContext(tCtx).Target))
+						return
+					}
+				}
+				_ = fetch.ContinueRequest(reqID).Do(cdp.WithExecutor(tCtx, chromedp.FromContext(tCtx).Target))
+			}()
 		case *network.EventResponseReceived:
 			if e.Response.URL == dlURL && requestID == "" {
 				requestID = e.RequestID
@@ -124,6 +161,10 @@ func (h *Handlers) HandleDownload(w http.ResponseWriter, r *http.Request) {
 
 	// Navigate the temp tab to the URL — uses browser's cookie jar and stealth.
 	if err := chromedp.Run(tCtx, chromedp.Navigate(dlURL)); err != nil {
+		if redirectBlocked.Load() {
+			web.Error(w, 422, fmt.Errorf("download: %w: got %d, max %d", bridge.ErrTooManyRedirects, redirectCount.Load(), maxRedirects))
+			return
+		}
 		web.Error(w, 502, fmt.Errorf("navigate to download URL: %w", err))
 		return
 	}
@@ -132,6 +173,10 @@ func (h *Handlers) HandleDownload(w http.ResponseWriter, r *http.Request) {
 	select {
 	case <-done:
 	case <-tCtx.Done():
+		if redirectBlocked.Load() {
+			web.Error(w, 422, fmt.Errorf("download: %w: got %d, max %d", bridge.ErrTooManyRedirects, redirectCount.Load(), maxRedirects))
+			return
+		}
 		web.Error(w, 504, fmt.Errorf("download timed out"))
 		return
 	}
