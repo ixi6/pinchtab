@@ -32,7 +32,7 @@ jobs:
 
       - name: Build pinchtab binary
         run: |
-          go build -o tests/e2e/runner-cli/pinchtab ./cmd/pinchtab
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o tests/e2e/runner-cli/pinchtab ./cmd/pinchtab
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
