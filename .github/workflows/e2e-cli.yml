@@ -2,6 +2,7 @@ name: E2E CLI Tests
 
 permissions:
   contents: read
+  pull-requests: write
 
 on:
   workflow_dispatch:
@@ -27,6 +28,8 @@ jobs:
   e2e-cli:
     name: CLI End-to-End Tests
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,7 +38,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-          cache: false  # Avoid tar cache restore issues
+          cache: false
 
       - name: Build pinchtab binary
         run: |
@@ -45,18 +48,103 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Run CLI E2E tests
+        id: e2e
         working-directory: tests/e2e
         run: |
+          set +e
           docker compose -f docker-compose-cli.yml up \
             --build \
             --abort-on-container-exit \
-            --exit-code-from runner
+            --exit-code-from runner 2>&1 | tee e2e-output.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          
+          # Extract summary from logs
+          PASSED=$(grep -oP 'Passed:\s*\K\d+' e2e-output.log | tail -1 || echo "0")
+          FAILED=$(grep -oP 'Failed:\s*\K\d+' e2e-output.log | tail -1 || echo "0")
+          
+          # Get failed test names if any
+          FAILURES=$(grep -E '✗.*failed' e2e-output.log | sed 's/.*✗ /- /' | head -10 || true)
+          
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          # Save failures for multiline output
+          {
+            echo 'failures<<EOF'
+            echo "$FAILURES"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+          
+          exit $EXIT_CODE
 
       - name: Copy results from container
         if: always()
         working-directory: tests/e2e
         run: |
           docker compose -f docker-compose-cli.yml cp runner:/results ./results || true
+
+      - name: Post summary
+        if: always()
+        run: |
+          if [ "${{ steps.e2e.outputs.failed }}" = "0" ]; then
+            echo "## ✅ CLI E2E Tests Passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**${{ steps.e2e.outputs.passed }}** tests passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ CLI E2E Tests Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Passed:** ${{ steps.e2e.outputs.passed }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Failed:** ${{ steps.e2e.outputs.failed }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Failed tests:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.e2e.outputs.failures }}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = '${{ steps.e2e.outputs.passed }}';
+            const failed = '${{ steps.e2e.outputs.failed }}';
+            const failures = `${{ steps.e2e.outputs.failures }}`;
+            
+            let body;
+            if (failed === '0' || failed === '') {
+              body = `## ✅ CLI E2E Tests Passed\n\n**${passed || 'All'}** tests passed`;
+            } else {
+              body = `## ❌ CLI E2E Tests Failed\n\n**Passed:** ${passed}\n**Failed:** ${failed}\n\n### Failed tests:\n\`\`\`\n${failures}\n\`\`\``;
+            }
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(c => 
+              c.user.type === 'Bot' && c.body.includes('CLI E2E Tests')
+            );
+            
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
 
       - name: Upload results
         if: always()
@@ -65,12 +153,3 @@ jobs:
           name: cli-e2e-results
           path: tests/e2e/results/
           retention-days: 7
-
-      - name: Show logs on failure
-        if: failure()
-        working-directory: tests/e2e
-        run: |
-          echo "=== CLI Runner Logs ==="
-          docker compose -f docker-compose-cli.yml logs runner || true
-          echo "=== Pinchtab Logs ==="
-          docker compose -f docker-compose-cli.yml logs pinchtab || true
