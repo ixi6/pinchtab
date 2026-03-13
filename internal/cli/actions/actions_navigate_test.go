@@ -42,8 +42,8 @@ func TestNavigateWithAllFlags(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newNavigateCmd()
-	cmd.Flags().Set("new-tab", "true")
-	cmd.Flags().Set("block-images", "true")
+	_ = cmd.Flags().Set("new-tab", "true")
+	_ = cmd.Flags().Set("block-images", "true")
 	Navigate(client, m.base(), "", "https://pinchtab.com", cmd)
 	var body map[string]any
 	_ = json.Unmarshal([]byte(m.lastBody), &body)
@@ -61,7 +61,7 @@ func TestNavigateWithBlockAds(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newNavigateCmd()
-	cmd.Flags().Set("block-ads", "true")
+	_ = cmd.Flags().Set("block-ads", "true")
 	Navigate(client, m.base(), "", "https://pinchtab.com", cmd)
 	var body map[string]any
 	_ = json.Unmarshal([]byte(m.lastBody), &body)

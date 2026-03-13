@@ -87,6 +87,7 @@ func DefaultFileConfig() FileConfig {
 }
 
 type fileConfigJSON struct {
+	ConfigVersion    string                     `json:"configVersion,omitempty"`
 	Server           serverConfigJSON           `json:"server"`
 	Browser          browserConfigJSON          `json:"browser"`
 	InstanceDefaults instanceDefaultsConfigJSON `json:"instanceDefaults"`
@@ -204,6 +205,7 @@ func copyStringSlice(items []string) []string {
 
 func (fc FileConfig) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fileConfigJSON{
+		ConfigVersion: fc.ConfigVersion,
 		Server: serverConfigJSON{
 			Port:     fc.Server.Port,
 			Bind:     fc.Server.Bind,

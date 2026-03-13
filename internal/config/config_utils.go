@@ -3,10 +3,10 @@ package config
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"strings"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var defaultLocalAllowedDomains = []string{"127.0.0.1", "localhost", "::1"}

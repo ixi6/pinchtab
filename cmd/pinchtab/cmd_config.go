@@ -309,12 +309,8 @@ func handleConfigInit() {
 		os.Exit(1)
 	}
 	fc.Server.Token = token
-	data, _ := json.Marshal(fc)
-	var nested map[string]any
-	_ = json.Unmarshal(data, &nested)
-	pretty, _ := json.MarshalIndent(nested, "", "  ")
 
-	if err := os.WriteFile(configPath, pretty, 0o644); err != nil {
+	if err := config.SaveFileConfig(&fc, configPath); err != nil {
 		fmt.Printf("Error writing config: %v\n", err)
 		os.Exit(1)
 	}

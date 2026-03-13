@@ -27,8 +27,8 @@ func TestSnapshot(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newSnapshotCmd()
-	cmd.Flags().Set("interactive", "true")
-	cmd.Flags().Set("compact", "true")
+	_ = cmd.Flags().Set("interactive", "true")
+	_ = cmd.Flags().Set("compact", "true")
 	Snapshot(client, m.base(), "", cmd)
 	if m.lastMethod != "GET" {
 		t.Errorf("expected GET, got %s", m.lastMethod)
@@ -50,10 +50,10 @@ func TestSnapshotDiff(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newSnapshotCmd()
-	cmd.Flags().Set("diff", "true")
-	cmd.Flags().Set("selector", "main")
-	cmd.Flags().Set("max-tokens", "2000")
-	cmd.Flags().Set("depth", "5")
+	_ = cmd.Flags().Set("diff", "true")
+	_ = cmd.Flags().Set("selector", "main")
+	_ = cmd.Flags().Set("max-tokens", "2000")
+	_ = cmd.Flags().Set("depth", "5")
 	Snapshot(client, m.base(), "", cmd)
 	if !strings.Contains(m.lastQuery, "diff=true") {
 		t.Errorf("expected diff=true, got %s", m.lastQuery)
@@ -75,7 +75,7 @@ func TestSnapshotTabId(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newSnapshotCmd()
-	cmd.Flags().Set("tab", "ABC123")
+	_ = cmd.Flags().Set("tab", "ABC123")
 	Snapshot(client, m.base(), "", cmd)
 	if !strings.Contains(m.lastQuery, "tabId=ABC123") {
 		t.Errorf("expected tabId=ABC123, got %s", m.lastQuery)

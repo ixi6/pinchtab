@@ -109,11 +109,6 @@ run_command() {
       echo ""
       exec bash scripts/test.sh unit
       ;;
-    "test integration"|"integration")
-      echo "  ${ACCENT}${BOLD}🔬 Integration tests${NC}"
-      echo ""
-      exec bash scripts/test.sh integration
-      ;;
     "test system"|"system")
       echo "  ${ACCENT}${BOLD}🔬 System tests${NC}"
       echo ""

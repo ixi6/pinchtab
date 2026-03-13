@@ -2,7 +2,7 @@
 set -e
 
 # test.sh — Run Go tests with optional scope
-# Usage: test.sh [unit|integration|system|all]
+# Usage: test.sh [unit|all]
 # Default: all
 
 cd "$(dirname "$0")/.."
@@ -263,42 +263,6 @@ if [ "$SCOPE" = "all" ] || [ "$SCOPE" = "unit" ]; then
   fi
   ok "Unit tests"
   test_summary "$UNIT_JSON" "Unit Test Results"
-fi
-
-# ── Integration tests ───────────────────────────────────────────────
-
-if [ "$SCOPE" = "all" ] || [ "$SCOPE" = "integration" ]; then
-  section "Integration Tests"
-
-  INTEGRATION_JSON="$TMPDIR_TEST/integration.json"
-
-  if ! run_go_test_json "$INTEGRATION_JSON" "integration" \
-    -tags integration -timeout 10m -count=1 \
-    -run '^Test' -skip "$SYSTEM_REGEX" ./tests/integration/; then
-    fail "Integration tests"
-    test_summary "$INTEGRATION_JSON" "Integration Test Results"
-    exit 1
-  fi
-  printf "\r%*s\r" 60 ""
-  ok "Integration tests"
-  test_summary "$INTEGRATION_JSON" "Integration Test Results"
-fi
-
-if [ "$SCOPE" = "all" ] || [ "$SCOPE" = "system" ]; then
-  section "System Tests"
-
-  SYSTEM_JSON="$TMPDIR_TEST/system.json"
-
-  if ! run_go_test_json "$SYSTEM_JSON" "system" \
-    -tags integration -timeout 12m -count=1 \
-    -run "$SYSTEM_REGEX" ./tests/integration/; then
-    fail "System tests"
-    test_summary "$SYSTEM_JSON" "System Test Results"
-    exit 1
-  fi
-  printf "\r%*s\r" 60 ""
-  ok "System tests"
-  test_summary "$SYSTEM_JSON" "System Test Results"
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────

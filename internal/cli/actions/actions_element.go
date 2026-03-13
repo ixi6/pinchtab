@@ -83,5 +83,3 @@ func ActionSimple(client *http.Client, base, token, kind string, args []string, 
 	}
 	apiclient.DoPost(client, base, token, path, body)
 }
-
-

@@ -72,6 +72,7 @@ func handleDaemonCommand(_ *config.RuntimeConfig, subcommand string) {
 			os.Exit(1)
 		}
 		// Run wizard if needed (first install or version upgrade)
+		fmt.Printf("[debug] configVersion=%q needsWizard=%v configPath=%s\n", fileCfg.ConfigVersion, config.NeedsWizard(fileCfg), configPath)
 		if config.NeedsWizard(fileCfg) {
 			isNew := config.IsFirstRun(fileCfg)
 			runSecurityWizard(fileCfg, configPath, isNew)
@@ -215,6 +216,7 @@ func ensureDaemonConfig(force bool) (string, *config.FileConfig, configBootstrap
 	exists := fileExists(configPath)
 	if !exists || force {
 		defaults := config.DefaultFileConfig()
+		defaults.ConfigVersion = "" // Leave empty so wizard triggers on first install
 		token, err := config.GenerateAuthToken()
 		if err != nil {
 			return "", nil, "", err

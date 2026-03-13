@@ -683,6 +683,7 @@ func LoadFileConfig() (*FileConfig, string, error) {
 		}
 	} else {
 		defaults := DefaultFileConfig()
+		defaults.ConfigVersion = "" // Don't assume version — let file content determine it
 		fc = &defaults
 		if err := json.Unmarshal(data, fc); err != nil {
 			return nil, configPath, fmt.Errorf("failed to parse config: %w", err)

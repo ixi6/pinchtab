@@ -30,7 +30,7 @@ Unit tests are standard Go tests that validate individual packages and functions
 
 ## E2E Tests
 
-End-to-end tests launch a real pinchtab server with Chrome and run integration-level tests against it.
+End-to-end tests launch a real pinchtab server with Chrome and run e2e-level tests against it.
 
 ### Curl Tests (HTTP API)
 
@@ -46,7 +46,7 @@ Runs 183 HTTP-level tests using curl against the server. Tests the REST API, nav
 ./dev e2e cli
 ```
 
-Runs 41 CLI integration tests. Tests the command-line interface directly.
+Runs CLI e2e tests. Tests the command-line interface directly.
 
 ### Both E2E Test Suites
 
@@ -90,7 +90,7 @@ E2E tests are organized in two directories:
   - Test the REST API directly
   - Use Docker Compose: `tests/e2e/docker-compose.yml`
 
-- **`tests/e2e/scenarios-cli/*.sh`** — CLI integration tests (41 tests)
+- **`tests/e2e/scenarios-cli/*.sh`** — CLI e2e tests (41 tests)
   - Test the command-line interface
   - Use Docker Compose: `tests/e2e/docker-compose.cli.yml`
 

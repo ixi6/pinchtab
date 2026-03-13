@@ -47,7 +47,7 @@ func TestClickWaitNav(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newActionCmd()
-	cmd.Flags().Set("wait-nav", "true")
+	_ = cmd.Flags().Set("wait-nav", "true")
 	Action(client, m.base(), "", "click", "e5", cmd)
 	var body map[string]any
 	_ = json.Unmarshal([]byte(m.lastBody), &body)
@@ -96,7 +96,7 @@ func TestClickWithCSS(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newActionCmd()
-	cmd.Flags().Set("css", "button.submit")
+	_ = cmd.Flags().Set("css", "button.submit")
 	Action(client, m.base(), "", "click", "", cmd)
 	var body map[string]any
 	_ = json.Unmarshal([]byte(m.lastBody), &body)
@@ -114,8 +114,8 @@ func TestClickWithCSS_AndWaitNav(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newActionCmd()
-	cmd.Flags().Set("wait-nav", "true")
-	cmd.Flags().Set("css", "#login-btn")
+	_ = cmd.Flags().Set("wait-nav", "true")
+	_ = cmd.Flags().Set("css", "#login-btn")
 	Action(client, m.base(), "", "click", "", cmd)
 	var body map[string]any
 	_ = json.Unmarshal([]byte(m.lastBody), &body)
@@ -133,7 +133,7 @@ func TestHoverWithCSS(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newActionCmd()
-	cmd.Flags().Set("css", ".nav-item")
+	_ = cmd.Flags().Set("css", ".nav-item")
 	Action(client, m.base(), "", "hover", "", cmd)
 	var body map[string]any
 	_ = json.Unmarshal([]byte(m.lastBody), &body)
@@ -148,7 +148,7 @@ func TestFocusWithCSS(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newActionCmd()
-	cmd.Flags().Set("css", "input[name='email']")
+	_ = cmd.Flags().Set("css", "input[name='email']")
 	Action(client, m.base(), "", "focus", "", cmd)
 	var body map[string]any
 	_ = json.Unmarshal([]byte(m.lastBody), &body)

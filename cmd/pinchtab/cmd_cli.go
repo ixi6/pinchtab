@@ -371,8 +371,6 @@ func init() {
 	textCmd.Flags().Bool("raw", false, "Raw extraction mode")
 	textCmd.Flags().String("tab", "", "Tab ID")
 
-
-
 	navCmd.Flags().Bool("new-tab", false, "Open in new tab")
 	navCmd.Flags().Bool("block-images", false, "Block image loading")
 	navCmd.Flags().Bool("block-ads", false, "Block ads")

@@ -33,7 +33,7 @@ func TestTextRaw(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newTextCmd()
-	cmd.Flags().Set("raw", "true")
+	_ = cmd.Flags().Set("raw", "true")
 	Text(client, m.base(), "", cmd)
 	if !strings.Contains(m.lastQuery, "mode=raw") {
 		t.Errorf("expected mode=raw, got %s", m.lastQuery)
@@ -46,7 +46,7 @@ func TestTextTab(t *testing.T) {
 	client := m.server.Client()
 
 	cmd := newTextCmd()
-	cmd.Flags().Set("tab", "TAB1")
+	_ = cmd.Flags().Set("tab", "TAB1")
 	Text(client, m.base(), "", cmd)
 	if !strings.Contains(m.lastQuery, "tabId=TAB1") {
 		t.Errorf("expected tabId=TAB1, got %s", m.lastQuery)

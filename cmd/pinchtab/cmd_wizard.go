@@ -119,7 +119,7 @@ func runFullWizard(cfg *config.FileConfig, configPath string) bool {
 
 	switch picked {
 	case "copy":
-		copyToClipboard(cfg.Server.Token)
+		_ = copyToClipboard(cfg.Server.Token)
 	case "new":
 		token, err := config.GenerateAuthToken()
 		if err == nil {
