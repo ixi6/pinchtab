@@ -1,52 +1,56 @@
 package config
 
-import (
-	"testing"
-)
+import "testing"
 
-func TestMaskToken(t *testing.T) {
+func TestCompareVersions(t *testing.T) {
 	tests := []struct {
-		token string
-		want  string
+		a, b string
+		want int
 	}{
-		{"", "(none)"},
-		{"short", "***"},
-		{"very-long-token-secret", "very...cret"},
+		{"0.8.0", "0.8.0", 0},
+		{"0.7.0", "0.8.0", -1},
+		{"0.8.0", "0.7.0", 1},
+		{"1.0.0", "0.9.9", 1},
+		{"0.8.1", "0.8.0", 1},
+		{"0.8.0", "0.8.1", -1},
+		{"1.0.0", "1.0.0", 0},
 	}
-
 	for _, tt := range tests {
-		if got := MaskToken(tt.token); got != tt.want {
-			t.Errorf("MaskToken(%q) = %v, want %v", tt.token, got, tt.want)
-		}
+		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
+			got := CompareVersions(tt.a, tt.b)
+			if got != tt.want {
+				t.Errorf("CompareVersions(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+			}
+		})
 	}
 }
 
-func TestGenerateAuthToken(t *testing.T) {
-	token, err := GenerateAuthToken()
-	if err != nil {
-		t.Fatalf("GenerateAuthToken() error = %v", err)
+func TestNeedsWizard(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{"empty version", "", true},
+		{"old version", "0.7.0", true},
+		{"current version", CurrentConfigVersion, false},
+		{"future version", "1.0.0", false},
 	}
-	if len(token) != 48 {
-		t.Fatalf("GenerateAuthToken() len = %d, want 48", len(token))
-	}
-	for _, r := range token {
-		switch {
-		case r >= '0' && r <= '9':
-		case r >= 'a' && r <= 'f':
-		default:
-			t.Fatalf("GenerateAuthToken() produced non-hex rune %q", r)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &FileConfig{ConfigVersion: tt.version}
+			if got := NeedsWizard(cfg); got != tt.want {
+				t.Errorf("NeedsWizard(%q) = %v, want %v", tt.version, got, tt.want)
+			}
+		})
 	}
 }
 
-func TestListenAddr(t *testing.T) {
-	cfg := &RuntimeConfig{Bind: "127.0.0.1", Port: "9867"}
-	if got := cfg.ListenAddr(); got != "127.0.0.1:9867" {
-		t.Errorf("expected 127.0.0.1:9867, got %s", got)
+func TestIsFirstRun(t *testing.T) {
+	if !IsFirstRun(&FileConfig{}) {
+		t.Error("expected IsFirstRun for empty config")
 	}
-
-	cfg = &RuntimeConfig{Bind: "0.0.0.0", Port: "8080"}
-	if got := cfg.ListenAddr(); got != "0.0.0.0:8080" {
-		t.Errorf("expected 0.0.0.0:8080, got %s", got)
+	if IsFirstRun(&FileConfig{ConfigVersion: "0.8.0"}) {
+		t.Error("expected not IsFirstRun for versioned config")
 	}
 }

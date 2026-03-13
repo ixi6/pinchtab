@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// CurrentConfigVersion is bumped when config schema changes require migration or wizard re-run.
+const CurrentConfigVersion = "0.8.0"
+
 // DefaultFileConfig returns a FileConfig with sensible defaults (nested format).
 func DefaultFileConfig() FileConfig {
 	start := 9868
@@ -23,6 +26,7 @@ func DefaultFileConfig() FileConfig {
 	allowUpload := false
 	maxRedirects := -1
 	return FileConfig{
+		ConfigVersion: CurrentConfigVersion,
 		Server: ServerConfig{
 			Port:     "9867",
 			Bind:     "127.0.0.1",

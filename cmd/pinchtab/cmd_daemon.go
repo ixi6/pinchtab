@@ -66,10 +66,15 @@ func handleDaemonCommand(_ *config.RuntimeConfig, subcommand string) {
 
 	switch subcommand {
 	case "install":
-		configPath, _, _, err := ensureDaemonConfig(false)
+		configPath, fileCfg, _, err := ensureDaemonConfig(false)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, cli.StyleStderr(cli.ErrorStyle, fmt.Sprintf("daemon install failed: %v", err)))
 			os.Exit(1)
+		}
+		// Run wizard if needed (first install or version upgrade)
+		if config.NeedsWizard(fileCfg) {
+			isNew := config.IsFirstRun(fileCfg)
+			runSecurityWizard(fileCfg, configPath, isNew)
 		}
 		if err := manager.Preflight(); err != nil {
 			fmt.Fprintln(os.Stderr, cli.StyleStderr(cli.ErrorStyle, fmt.Sprintf("daemon install unavailable: %v", err)))
@@ -201,7 +206,7 @@ func printDaemonManagerResult(message string, err error) {
 	}
 }
 
-func ensureDaemonConfig(force bool) (string, *config.RuntimeConfig, configBootstrapStatus, error) {
+func ensureDaemonConfig(force bool) (string, *config.FileConfig, configBootstrapStatus, error) {
 	_, configPath, err := config.LoadFileConfig()
 	if err != nil {
 		return "", nil, "", err
@@ -222,20 +227,22 @@ func ensureDaemonConfig(force bool) (string, *config.RuntimeConfig, configBootst
 		if exists {
 			status = configRecovered
 		}
-		return configPath, config.Load(), status, nil
+		return configPath, &defaults, status, nil
 	}
 
 	// If file exists and not forced, check if it needs recovery to secure baseline
 	_, changed, err := cli.RestoreSecurityDefaults()
 	if err != nil {
-		return configPath, config.Load(), configVerified, err
+		fileCfg, _, _ := config.LoadFileConfig()
+		return configPath, fileCfg, configVerified, err
 	}
 	status := configVerified
 	if changed {
 		status = configRecovered
 	}
 
-	return configPath, config.Load(), status, nil
+	fileCfg, _, _ := config.LoadFileConfig()
+	return configPath, fileCfg, status, nil
 }
 
 type configBootstrapStatus string

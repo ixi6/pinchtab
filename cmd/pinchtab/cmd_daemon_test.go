@@ -39,10 +39,10 @@ func TestEnsureOnboardConfigCreatesDefaultConfig(t *testing.T) {
 	if gotPath != configPath {
 		t.Fatalf("config path = %q, want %q", gotPath, configPath)
 	}
-	if cfg.Bind != "127.0.0.1" {
-		t.Fatalf("bind = %q, want 127.0.0.1", cfg.Bind)
+	if cfg.Server.Bind != "127.0.0.1" {
+		t.Fatalf("bind = %q, want 127.0.0.1", cfg.Server.Bind)
 	}
-	if strings.TrimSpace(cfg.Token) == "" {
+	if strings.TrimSpace(cfg.Server.Token) == "" {
 		t.Fatal("expected generated token to be set")
 	}
 	data, err := os.ReadFile(configPath)
@@ -89,19 +89,19 @@ func TestEnsureOnboardConfigRecoversExistingSecuritySettings(t *testing.T) {
 	if status != configRecovered {
 		t.Fatalf("status = %q, want %q", status, configRecovered)
 	}
-	if cfg.Bind != "127.0.0.1" {
-		t.Fatalf("bind = %q, want 127.0.0.1", cfg.Bind)
+	if cfg.Server.Bind != "127.0.0.1" {
+		t.Fatalf("bind = %q, want 127.0.0.1", cfg.Server.Bind)
 	}
-	if cfg.Port != "9999" {
-		t.Fatalf("port = %q, want 9999", cfg.Port)
+	if cfg.Server.Port != "9999" {
+		t.Fatalf("port = %q, want 9999", cfg.Server.Port)
 	}
-	if cfg.ChromeBinary != "/custom/chrome" {
-		t.Fatalf("chrome binary = %q, want /custom/chrome", cfg.ChromeBinary)
+	if cfg.Browser.ChromeBinary != "/custom/chrome" {
+		t.Fatalf("chrome binary = %q, want /custom/chrome", cfg.Browser.ChromeBinary)
 	}
-	if cfg.AllowEvaluate {
+	if boolPtrValue(cfg.Security.AllowEvaluate) {
 		t.Fatal("expected allowEvaluate to be reset to false")
 	}
-	if strings.TrimSpace(cfg.Token) == "" {
+	if strings.TrimSpace(cfg.Server.Token) == "" {
 		t.Fatal("expected recovery to generate a token")
 	}
 }

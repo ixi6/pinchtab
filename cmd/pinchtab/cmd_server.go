@@ -10,6 +10,7 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start full server",
 	Run: func(cmd *cobra.Command, args []string) {
+		maybeRunWizard()
 		cfg := config.Load()
 		server.RunDashboard(cfg, version)
 	},

@@ -22,6 +22,9 @@ browsers, manage tabs, and perform interactive tasks.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.Load()
 
+		// Check if security wizard needs to run
+		maybeRunWizard()
+
 		if isInteractiveTerminal() {
 			cli.PrintStartupBanner(cfg, cli.StartupBannerOptions{
 				Mode:         "menu",
@@ -65,6 +68,21 @@ browsers, manage tabs, and perform interactive tasks.`,
 		// Fallback for non-interactive: start the server
 		server.RunDashboard(cfg, version)
 	},
+}
+
+// maybeRunWizard checks if the security wizard should run and triggers it.
+func maybeRunWizard() {
+	fileCfg, configPath, err := config.LoadFileConfig()
+	if err != nil || configPath == "" {
+		return // No config file context — skip wizard
+	}
+
+	if !config.NeedsWizard(fileCfg) {
+		return
+	}
+
+	isNew := config.IsFirstRun(fileCfg)
+	runSecurityWizard(fileCfg, configPath, isNew)
 }
 
 func menuListenStatus(cfg *config.RuntimeConfig) string {

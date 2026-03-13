@@ -97,6 +97,7 @@ type SchedulerConfig struct {
 
 // FileConfig is the persistent configuration written to disk.
 type FileConfig struct {
+	ConfigVersion    string                 `json:"configVersion,omitempty"`
 	Server           ServerConfig           `json:"server,omitempty"`
 	Browser          BrowserConfig          `json:"browser,omitempty"`
 	InstanceDefaults InstanceDefaultsConfig `json:"instanceDefaults,omitempty"`
