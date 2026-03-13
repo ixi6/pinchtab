@@ -244,10 +244,16 @@ func startChromeWithRecovery(parentCtx context.Context, cfg *config.RuntimeConfi
 	select {
 	case res := <-runCh:
 		err = res.err
+		if err != nil {
+			slog.Debug("chrome initial action failed", "error", err.Error())
+		} else {
+			slog.Debug("chrome initial action succeeded")
+		}
 	case <-time.After(chromeStartupTimeout):
 		// Chrome started (ExecAllocator launched the process) but never announced
 		// its DevTools URL via stderr.  Wrap as DeadlineExceeded so isStartupTimeout
 		// recognises it, then fall through to the cleanup + fallback logic below.
+		slog.Debug("chrome startup timed out", "timeout", chromeStartupTimeout)
 		err = fmt.Errorf("chrome startup timeout after %v: %w", chromeStartupTimeout, context.DeadlineExceeded)
 	}
 
@@ -257,8 +263,10 @@ func startChromeWithRecovery(parentCtx context.Context, cfg *config.RuntimeConfi
 		allocCancel()
 
 		errMsg := err.Error()
+		slog.Debug("evaluating chrome startup error", "error", errMsg)
 
 		if !retriedProfileLock && isChromeProfileLockError(errMsg) {
+			slog.Debug("detected chrome profile lock error", "profile", cfg.ProfileDir)
 			recovered, recoverErr := clearStaleChromeProfileLock(cfg.ProfileDir, errMsg)
 			if recoverErr != nil {
 				slog.Warn("failed to recover chrome profile lock", "profile", cfg.ProfileDir, "err", recoverErr)
