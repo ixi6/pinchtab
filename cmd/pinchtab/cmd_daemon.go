@@ -72,7 +72,6 @@ func handleDaemonCommand(_ *config.RuntimeConfig, subcommand string) {
 			os.Exit(1)
 		}
 		// Run wizard if needed (first install or version upgrade)
-		fmt.Printf("[debug] configVersion=%q needsWizard=%v configPath=%s\n", fileCfg.ConfigVersion, config.NeedsWizard(fileCfg), configPath)
 		if config.NeedsWizard(fileCfg) {
 			isNew := config.IsFirstRun(fileCfg)
 			runSecurityWizard(fileCfg, configPath, isNew)

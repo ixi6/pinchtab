@@ -29,22 +29,19 @@ func runSecurityWizard(cfg *config.FileConfig, configPath string, isNew bool) bo
 func runNonInteractiveSetup(cfg *config.FileConfig, configPath string, isNew bool) bool {
 	if isNew {
 		fmt.Println()
-		fmt.Println(cli.StyleStdout(cli.HeadingStyle, "🔒 Security defaults applied"))
-		fmt.Printf("   Dashboard:  http://%s:%s\n", orDefault(cfg.Server.Bind, "127.0.0.1"), orDefault(cfg.Server.Port, "9867"))
+		fmt.Println(cli.StyleStdout(cli.HeadingStyle, "🛡️  Know your config"))
+		fmt.Println()
+		fmt.Println("   Guard: UP (maximum security)")
+		fmt.Printf("   Allowed domains: %s\n", strings.Join(getAllowedDomains(cfg), ", "))
 		if cfg.Server.Token != "" {
-			fmt.Printf("   Token:      %s\n", cfg.Server.Token[:12]+"...")
-			fmt.Printf("   Dashboard:  http://%s:%s?token=%s\n",
-				orDefault(cfg.Server.Bind, "127.0.0.1"),
-				orDefault(cfg.Server.Port, "9867"),
-				cfg.Server.Token)
+			fmt.Printf("   Token: %s\n", cfg.Server.Token[:min(12, len(cfg.Server.Token))]+"...")
 		}
-		fmt.Println("   IDPI:       enabled (localhost only)")
 		fmt.Println()
 		fmt.Println("   Run " + cli.StyleStdout(cli.CommandStyle, "pinchtab security") + " to review all settings.")
 		fmt.Println()
 	} else {
 		fmt.Println()
-		fmt.Println(cli.StyleStdout(cli.HeadingStyle, "🔒 Config updated to v"+config.CurrentConfigVersion))
+		fmt.Println(cli.StyleStdout(cli.HeadingStyle, "🛡️  Config updated to v"+config.CurrentConfigVersion))
 		fmt.Println("   Run " + cli.StyleStdout(cli.CommandStyle, "pinchtab security") + " to review changes.")
 		fmt.Println()
 	}
@@ -57,92 +54,67 @@ func runNonInteractiveSetup(cfg *config.FileConfig, configPath string, isNew boo
 // runFullWizard runs the interactive first-run wizard.
 func runFullWizard(cfg *config.FileConfig, configPath string) bool {
 	fmt.Println()
-	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "🔒 Security Setup"))
+	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "🛡️  Know your config"))
 	fmt.Println()
-	fmt.Println("   We care about your security — PinchTab ships with the strongest defaults.")
+	fmt.Println("PinchTab ships with the strongest security defaults.")
+	fmt.Println("Choose your security posture:")
 	fmt.Println()
 	printSeparator()
 
-	// Step 1: IDPI
+	// Guard Up
 	fmt.Println()
-	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "   1. IDPI (Injection Detection)"))
+	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "1. Guard UP (recommended)"))
+	fmt.Println(cli.StyleStdout(cli.MutedStyle, "Only sites running on this machine can be automated."))
 	fmt.Println()
-	domains := cfg.Security.IDPI.AllowedDomains
-	if len(domains) == 0 {
-		domains = []string{"127.0.0.1", "localhost", "::1"}
-	}
-	fmt.Printf("   Allowed domains: %s\n", cli.StyleStdout(cli.ValueStyle, strings.Join(domains, ", ")))
-	fmt.Println("   Only locally-served sites can be automated without warnings.")
+	printSetting("domains", cli.StyleStdout(cli.ValueStyle, strings.Join(getAllowedDomains(cfg), ", ")))
+	printSetting("evaluate", cli.StyleStdout(cli.SuccessStyle, "disabled"))
+	printSetting("download", cli.StyleStdout(cli.SuccessStyle, "disabled"))
+	printSetting("upload", cli.StyleStdout(cli.SuccessStyle, "disabled"))
+	printSetting("macros", cli.StyleStdout(cli.SuccessStyle, "disabled"))
+	printSetting("screencast", cli.StyleStdout(cli.SuccessStyle, "disabled"))
+	printSetting("IDPI", cli.StyleStdout(cli.SuccessStyle, "strict"))
 	fmt.Println()
 
-	picked, err := promptSelect("IDPI allowed domains", []menuOption{
-		{label: "Confirm defaults", value: "confirm"},
-		{label: "Open in browser to edit", value: "browser"},
-	})
-	if err != nil {
-		return false
-	}
-	if picked == "browser" {
-		fmt.Println()
-		fmt.Println("   " + cli.StyleStdout(cli.MutedStyle, "Complete setup in your browser, then restart the server."))
-		fmt.Printf("   %s\n", dashboardURL(cfg, "/setup"))
-		fmt.Println()
-		// Save what we have so far
-		cfg.ConfigVersion = config.CurrentConfigVersion
-		_ = config.SaveFileConfig(cfg, configPath)
-		return true
-	}
-
-	// Step 2: Dashboard access
+	// Guard Down
+	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "2. Guard DOWN (development)"))
+	fmt.Println(cli.StyleStdout(cli.MutedStyle, "All features enabled, any site can be automated. Use for local dev only."))
+	fmt.Println()
+	printSetting("domains", cli.StyleStdout(cli.WarningStyle, "all"))
+	printSetting("evaluate", cli.StyleStdout(cli.WarningStyle, "enabled"))
+	printSetting("download", cli.StyleStdout(cli.WarningStyle, "enabled"))
+	printSetting("upload", cli.StyleStdout(cli.WarningStyle, "enabled"))
+	printSetting("macros", cli.StyleStdout(cli.WarningStyle, "enabled"))
+	printSetting("screencast", cli.StyleStdout(cli.WarningStyle, "enabled"))
+	printSetting("IDPI", cli.StyleStdout(cli.WarningStyle, "off"))
+	fmt.Println()
 	printSeparator()
 	fmt.Println()
-	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "   2. Dashboard Access"))
-	fmt.Println()
-	if cfg.Server.Token != "" {
-		fmt.Printf("   Token: %s\n", cli.StyleStdout(cli.ValueStyle, cfg.Server.Token))
-		fmt.Println()
-		url := dashboardURL(cfg, "")
-		fmt.Printf("   Dashboard: %s\n", cli.StyleStdout(cli.CommandStyle, url))
-	} else {
-		fmt.Println("   " + cli.StyleStdout(cli.WarningStyle, "No token set — dashboard is unprotected!"))
-	}
-	fmt.Println()
 
-	picked, err = promptSelect("Dashboard token", []menuOption{
-		{label: "Keep token", value: "keep"},
-		{label: "Copy to clipboard", value: "copy"},
-		{label: "Generate new token", value: "new"},
+	picked, err := promptSelect("Security posture", []menuOption{
+		{label: "Guard UP — maximum security", value: "up"},
+		{label: "Guard DOWN — development mode", value: "down"},
 	})
 	if err != nil {
 		return false
 	}
 
 	switch picked {
-	case "copy":
-		_ = copyToClipboard(cfg.Server.Token)
-	case "new":
-		token, err := config.GenerateAuthToken()
-		if err == nil {
-			cfg.Server.Token = token
-			fmt.Printf("   New token: %s\n", cli.StyleStdout(cli.ValueStyle, token))
-		}
+	case "up":
+		applyGuardUp(cfg)
+	case "down":
+		applyGuardDown(cfg)
 	}
 
-	// Step 3: Security summary
+	// Dashboard access
 	printSeparator()
 	fmt.Println()
-	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "   3. Security Settings"))
+	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "Dashboard"))
 	fmt.Println()
-	printSecuritySetting("evaluate", boolPtrValue(cfg.Security.AllowEvaluate))
-	printSecuritySetting("download", boolPtrValue(cfg.Security.AllowDownload))
-	printSecuritySetting("upload", boolPtrValue(cfg.Security.AllowUpload))
-	printSecuritySetting("macros", boolPtrValue(cfg.Security.AllowMacro))
-	printSecuritySetting("screencast", boolPtrValue(cfg.Security.AllowScreencast))
-	fmt.Println()
-	fmt.Println("   Review or change with " + cli.StyleStdout(cli.CommandStyle, "pinchtab security"))
-	fmt.Println()
-
-	printSeparator()
+	loginURL := dashboardURL(cfg, "/login")
+	fmt.Println(cli.StyleStdout(cli.CommandStyle, loginURL))
+	if err := copyToClipboard(loginURL); err == nil {
+		fmt.Println(cli.StyleStdout(cli.MutedStyle, "Copied to clipboard"))
+	}
 	fmt.Println()
 
 	// Save
@@ -152,7 +124,8 @@ func runFullWizard(cfg *config.FileConfig, configPath string) bool {
 		return false
 	}
 
-	fmt.Println(cli.StyleStdout(cli.SuccessStyle, "   ✓ Setup complete!"))
+	fmt.Println(cli.StyleStdout(cli.SuccessStyle, "✓ Configuration complete — installing..."))
+	fmt.Println(cli.StyleStdout(cli.MutedStyle, "For more configuration, visit the dashboard."))
 	fmt.Println()
 	return true
 }
@@ -160,17 +133,17 @@ func runFullWizard(cfg *config.FileConfig, configPath string) bool {
 // runUpgradeNotice shows a brief notice for config upgrades.
 func runUpgradeNotice(cfg *config.FileConfig, configPath string) bool {
 	fmt.Println()
-	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "🔒 Security update (v"+config.CurrentConfigVersion+")"))
+	fmt.Println(cli.StyleStdout(cli.HeadingStyle, "🛡️  Config update (v"+config.CurrentConfigVersion+")"))
 	fmt.Println()
 
 	oldVersion := cfg.ConfigVersion
 	if oldVersion == "" {
 		oldVersion = "pre-0.8.0"
 	}
-	fmt.Printf("   Config upgraded: %s → %s\n", oldVersion, config.CurrentConfigVersion)
+	fmt.Printf("   Upgraded: %s → %s\n", oldVersion, config.CurrentConfigVersion)
 
 	if cfg.Server.Token != "" {
-		fmt.Printf("   Dashboard token: %s\n", cli.StyleStdout(cli.ValueStyle, cfg.Server.Token[:min(12, len(cfg.Server.Token))]+"..."))
+		fmt.Printf("   Token: %s\n", cli.StyleStdout(cli.ValueStyle, cfg.Server.Token[:min(12, len(cfg.Server.Token))]+"..."))
 	}
 
 	fmt.Println()
@@ -182,18 +155,50 @@ func runUpgradeNotice(cfg *config.FileConfig, configPath string) bool {
 	return true
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────
+// ─── Guard Presets ───────────────────────────────────────────────
 
-func printSeparator() {
-	fmt.Println("   " + cli.StyleStdout(cli.MutedStyle, strings.Repeat("━", 50)))
+func applyGuardUp(cfg *config.FileConfig) {
+	f := false
+	cfg.Security.AllowEvaluate = &f
+	cfg.Security.AllowDownload = &f
+	cfg.Security.AllowUpload = &f
+	cfg.Security.AllowMacro = &f
+	cfg.Security.AllowScreencast = &f
+	cfg.Security.IDPI.Enabled = true
+	cfg.Security.IDPI.StrictMode = true
+	cfg.Security.IDPI.ScanContent = true
+	cfg.Security.IDPI.WrapContent = true
+	cfg.Security.IDPI.AllowedDomains = []string{"127.0.0.1", "localhost", "::1"}
+	cfg.Server.Bind = "127.0.0.1"
 }
 
-func printSecuritySetting(name string, enabled bool) {
-	status := cli.StyleStdout(cli.SuccessStyle, "disabled")
-	if enabled {
-		status = cli.StyleStdout(cli.WarningStyle, "enabled")
+func applyGuardDown(cfg *config.FileConfig) {
+	t := true
+	cfg.Security.AllowEvaluate = &t
+	cfg.Security.AllowDownload = &t
+	cfg.Security.AllowUpload = &t
+	cfg.Security.AllowMacro = &t
+	cfg.Security.AllowScreencast = &t
+	cfg.Security.IDPI.Enabled = false
+	cfg.Security.IDPI.StrictMode = false
+	cfg.Security.IDPI.AllowedDomains = nil
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────
+
+func getAllowedDomains(cfg *config.FileConfig) []string {
+	if len(cfg.Security.IDPI.AllowedDomains) > 0 {
+		return cfg.Security.IDPI.AllowedDomains
 	}
-	fmt.Printf("   • %-12s %s\n", name+":", status)
+	return []string{"127.0.0.1", "localhost", "::1"}
+}
+
+func printSeparator() {
+	fmt.Println(cli.StyleStdout(cli.MutedStyle, strings.Repeat("━", 50)))
+}
+
+func printSetting(name, value string) {
+	fmt.Printf("  %-12s %s\n", name+":", value)
 }
 
 func boolPtrValue(p *bool) bool {
