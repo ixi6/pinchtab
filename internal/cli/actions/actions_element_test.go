@@ -191,9 +191,20 @@ func TestFill(t *testing.T) {
 	}
 
 	ActionSimple(client, m.base(), "", "fill", []string{"#email", "user@test.com"}, cmd)
+	body = nil
 	_ = json.Unmarshal([]byte(m.lastBody), &body)
 	if body["selector"] != "#email" {
 		t.Errorf("expected selector=#email, got %v", body["selector"])
+	}
+
+	ActionSimple(client, m.base(), "", "fill", []string{"embed", "inline content"}, cmd)
+	body = nil
+	_ = json.Unmarshal([]byte(m.lastBody), &body)
+	if body["selector"] != "embed" {
+		t.Errorf("expected selector=embed, got %v", body["selector"])
+	}
+	if _, hasRef := body["ref"]; hasRef {
+		t.Errorf("expected no ref for selector embed, got %v", body["ref"])
 	}
 }
 
@@ -211,12 +222,14 @@ func TestScroll(t *testing.T) {
 	}
 
 	ActionSimple(client, m.base(), "", "scroll", []string{"800"}, cmd)
+	body = nil
 	_ = json.Unmarshal([]byte(m.lastBody), &body)
 	if body["scrollY"] != float64(800) {
 		t.Errorf("expected scrollY=800, got %v", body["scrollY"])
 	}
 
 	ActionSimple(client, m.base(), "", "scroll", []string{"down"}, cmd)
+	body = nil
 	_ = json.Unmarshal([]byte(m.lastBody), &body)
 	if body["scrollY"] != float64(800) {
 		t.Errorf("expected scrollY=800 for direction=down, got %v", body["scrollY"])

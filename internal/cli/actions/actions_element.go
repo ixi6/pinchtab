@@ -10,6 +10,18 @@ import (
 	"strings"
 )
 
+func isElementRef(value string) bool {
+	if len(value) < 2 || value[0] != 'e' {
+		return false
+	}
+	for i := 1; i < len(value); i++ {
+		if value[i] < '0' || value[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func Action(client *http.Client, base, token, kind, refArg string, cmd *cobra.Command) {
 	body := map[string]any{"kind": kind}
 
@@ -44,7 +56,7 @@ func ActionSimple(client *http.Client, base, token, kind string, args []string, 
 		body["ref"] = args[0]
 		body["text"] = strings.Join(args[1:], " ")
 	case "fill":
-		if strings.HasPrefix(args[0], "e") {
+		if isElementRef(args[0]) {
 			body["ref"] = args[0]
 		} else {
 			body["selector"] = args[0]
