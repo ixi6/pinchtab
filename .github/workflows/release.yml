@@ -39,6 +39,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  GORELEASER_VERSION: v2.14.3
 
 permissions:
   contents: write
@@ -75,10 +76,15 @@ jobs:
         working-directory: dashboard
         run: bun install --frozen-lockfile
 
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          version: '~> v2'
-          args: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'release --clean --snapshot' || 'release --clean' }}
+      - name: Run GoReleaser
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="release --clean --snapshot"
+          else
+            ARGS="release --clean"
+          fi
+
+          curl -sfL https://goreleaser.com/static/run | VERSION="$GORELEASER_VERSION" bash -s -- $ARGS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
