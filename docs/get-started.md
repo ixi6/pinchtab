@@ -174,8 +174,24 @@ brew install chromium
 sudo apt install chromium-browser
 
 # Custom Chrome binary
-CHROME_BIN=/path/to/chrome pinchtab
+pinchtab config set browser.binary /path/to/chrome
 ```
+
+### Can't open personal Chrome while PinchTab is running (macOS)
+
+macOS treats all instances of the same Chrome app as one application. When PinchTab runs headless Chrome, clicking the Chrome icon does nothing because macOS thinks Chrome is already open.
+
+**Fix:** Use [Chrome for Testing](https://developer.chrome.com/blog/chrome-for-testing) — a separate binary that doesn't conflict with your personal Chrome:
+
+```bash
+# Download Chrome for Testing
+npx @anthropic-ai/puppeteer-browsers install chrome@stable
+
+# Point PinchTab at it
+pinchtab config set browser.binary "/path/to/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+```
+
+**Quick workaround:** Force-open a new Chrome window with `open -na "Google Chrome"`.
 
 ---
 
