@@ -643,6 +643,8 @@ func renderLaunchdPlist(execPath, configPath string) string {
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ExitTimeOut</key>
+  <integer>10</integer>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PINCHTAB_CONFIG</key>

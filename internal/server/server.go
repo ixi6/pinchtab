@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pinchtab/pinchtab/internal/bridge"
 	"github.com/pinchtab/pinchtab/internal/cli"
 	"github.com/pinchtab/pinchtab/internal/config"
 	"github.com/pinchtab/pinchtab/internal/dashboard"
@@ -29,6 +30,9 @@ import (
 )
 
 func RunDashboard(cfg *config.RuntimeConfig, version string) {
+	// Clean up orphaned Chrome processes from previous crashed runs
+	bridge.CleanupOrphanedChromeProcesses(cfg.ProfileDir)
+
 	dashPort := cfg.Port
 	if dashPort == "" {
 		dashPort = "9870"
@@ -180,6 +184,10 @@ func RunDashboard(cfg *config.RuntimeConfig, version string) {
 	doShutdown := func() {
 		shutdownOnce.Do(func() {
 			slog.Info("shutting down dashboard...")
+			// Kill all Chrome processes under our profiles dir immediately.
+			// This runs before strategy.Stop() to ensure cleanup happens
+			// even if launchd SIGKILL arrives during graceful shutdown.
+			bridge.KillAllPinchtabChrome()
 			if err := activeStrategy.Stop(); err != nil {
 				slog.Warn("strategy stop failed", "err", err)
 			}
@@ -205,6 +213,9 @@ func RunDashboard(cfg *config.RuntimeConfig, version string) {
 		sig := make(chan os.Signal, 2)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
+		// Kill Chrome immediately on signal — synchronous, before anything else.
+		// launchd may SIGKILL us shortly after SIGTERM, so this must happen first.
+		bridge.KillAllPinchtabChrome()
 		go doShutdown()
 		<-sig
 		slog.Warn("force shutdown requested")
