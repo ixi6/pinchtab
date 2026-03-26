@@ -86,6 +86,15 @@ func optBool(r mcp.CallToolRequest, key string) (bool, bool) {
 	return v, ok
 }
 
+func optNumber(r mcp.CallToolRequest, key string) float64 {
+	v, _ := r.GetArguments()[key].(float64)
+	return v
+}
+
+func formatInt(v float64) string {
+	return fmt.Sprintf("%d", int(v))
+}
+
 func resultFromBytes(body []byte, code int) (*mcp.CallToolResult, error) {
 	if code >= 400 {
 		return mcp.NewToolResultError(fmt.Sprintf("HTTP %d: %s", code, string(body))), nil
@@ -141,16 +150,22 @@ func handleSnapshot(c *Client) func(context.Context, mcp.CallToolRequest) (*mcp.
 			q.Set("tabId", tabID)
 		}
 		if v, ok := optBool(r, "interactive"); ok && v {
-			q.Set("interactive", "true")
+			q.Set("filter", "interactive")
 		}
 		if v, ok := optBool(r, "compact"); ok && v {
-			q.Set("compact", "true")
+			q.Set("format", "compact")
 		}
 		if v, ok := optBool(r, "diff"); ok && v {
 			q.Set("diff", "true")
 		}
 		if sel := optString(r, "selector"); sel != "" {
 			q.Set("selector", sel)
+		}
+		if v := optNumber(r, "maxTokens"); v > 0 {
+			q.Set("maxTokens", formatInt(v))
+		}
+		if v := optNumber(r, "depth"); v > 0 {
+			q.Set("depth", formatInt(v))
 		}
 		body, code, err := c.Get(ctx, "/snapshot", q)
 		if err != nil {
@@ -188,6 +203,9 @@ func handleGetText(c *Client) func(context.Context, mcp.CallToolRequest) (*mcp.C
 		}
 		if v, ok := optBool(r, "raw"); ok && v {
 			q.Set("mode", "raw")
+		}
+		if v := optNumber(r, "maxChars"); v > 0 {
+			q.Set("maxChars", formatInt(v))
 		}
 		body, code, err := c.Get(ctx, "/text", q)
 		if err != nil {

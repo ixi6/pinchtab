@@ -18,6 +18,8 @@ func allTools() []mcp.Tool {
 			mcp.WithBoolean("compact", mcp.Description("Compact format (most token-efficient)")),
 			mcp.WithBoolean("diff", mcp.Description("Only changes since last snapshot")),
 			mcp.WithString("selector", mcp.Description("Unified selector to scope the snapshot (CSS, XPath, text, or ref)")),
+			mcp.WithNumber("maxTokens", mcp.Description("Maximum estimated tokens in response (e.g. 300)")),
+			mcp.WithNumber("depth", mcp.Description("Maximum tree depth (e.g. 3)")),
 		),
 		mcp.NewTool("pinchtab_screenshot",
 			mcp.WithDescription("Take a screenshot of the current page"),
@@ -29,6 +31,7 @@ func allTools() []mcp.Tool {
 			mcp.WithDescription("Extract readable text content from the current page"),
 			mcp.WithString("tabId", mcp.Description("Target tab ID")),
 			mcp.WithBoolean("raw", mcp.Description("Return raw text without formatting")),
+			mcp.WithNumber("maxChars", mcp.Description("Maximum characters in response (e.g. 3000)")),
 		),
 
 		// ── Interaction ─────────────────────────────────────────────
